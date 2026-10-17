@@ -2,6 +2,30 @@
 
 Next.js + Clerk + FastAPI + PostGIS + Valkey. The frontend uses shadcn/ui, Radix primitives, and Tailwind CSS with a shared neutral/violet design system.
 
+## Deploy a release
+
+On a server with Docker Engine and Docker Compose v2 (with `up --wait` support):
+
+```bash
+cp .env.release.example .env.release
+# Fill in the release database password, Clerk keys, and public URLs.
+chmod 600 .env.release
+./deploy.sh --check
+./deploy.sh
+```
+
+The script builds the frontend and API, starts PostGIS and Valkey, and waits for all services to become healthy. Run it again after copying or pulling new code to release an update. Use `--env-file PATH` or `--project-name NAME` to override the defaults. Keep the same project name between releases so the database volumes are reused. The default `playzo-release` project has separate volumes from local development; existing development records are not copied into it.
+
+Terminate HTTPS with a host reverse proxy: route the frontend domain to `127.0.0.1:3001` and the API domain to `127.0.0.1:8001`. Forward WebSocket upgrades on the API domain for chat and forward the original host/protocol headers. Configure the same frontend domain in Clerk and `FRONTEND_ORIGINS`. The script deploys to the current Docker host; it does not upload code, configure DNS/TLS, or push images to a registry.
+
+`NEXT_PUBLIC_*` settings are embedded during the frontend build. Clerk's secret key is passed only at runtime. Database migrations run automatically when the API starts. Back up the release database before updates: migrations are additive, but a failed health check does not automatically roll back images or schema. Changing `POSTGRES_PASSWORD` in the environment does not rotate the password of an existing database volume. Never run `down -v` against release data.
+
+Inspect a release with:
+
+```bash
+docker compose -p playzo-release --env-file .env.release -f docker-compose.release.yml logs --tail=100
+```
+
 ## Features
 - Custom shadcn/ui sign-up and sign-in forms backed by Clerk, with email-code verification and password reset
 - PIN lookup, approximate location capture, multiple sports with individual skill levels

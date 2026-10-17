@@ -1,0 +1,82 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: playzo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the release environment}
+      POSTGRES_DB: playzo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U playzo -d playzo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - valkeydata:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      # URL-encode password characters when setting DATABASE_URL.
+      DATABASE_URL: ${DATABASE_URL:?Set the release DATABASE_URL using host db and port 5432}
+      VALKEY_URL: redis://valkey:6379/0
+      CLERK_ISSUER: ${CLERK_ISSUER:?Set CLERK_ISSUER}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-}
+      CLERK_AUDIENCE: ${CLERK_AUDIENCE:-}
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:?Set FRONTEND_ORIGINS to the public frontend origin}
+    ports:
+      - "127.0.0.1:${API_PORT:-8001}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set the public HTTPS API URL}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?Set the Clerk publishable key}
+    restart: unless-stopped
+    environment:
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?Set the Clerk secret key}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?Set the Clerk publishable key}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set the public HTTPS API URL}
+      NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+      NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3001}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+volumes:
+  pgdata:
+  valkeydata:
