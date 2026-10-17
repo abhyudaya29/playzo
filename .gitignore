@@ -1,0 +1,12 @@
+node_modules
+.next
+.next-dev
+*.tsbuildinfo
+.env
+.env.local
+__pycache__
+*.pyc
+.DS_Store
+
+playwright-report
+test-results

@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.next-dev/
+package-lock.json
+next-env.d.ts
+tsconfig.tsbuildinfo
+.env*
+
+playwright-report/
+test-results/

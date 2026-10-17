@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    # This image is AMD64; Docker Desktop emulates it on Apple Silicon.
+    platform: linux/amd64
+    environment:
+      POSTGRES_USER: playzo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-playzo}
+      POSTGRES_DB: playzo
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U playzo"]
+      interval: 5s
+      retries: 10
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server","--save","60","1"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - valkeydata:/data
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://playzo:${POSTGRES_PASSWORD:-playzo}@db:5432/playzo
+      VALKEY_URL: redis://valkey:6379/0
+      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-}
+      CLERK_AUDIENCE: ${CLERK_AUDIENCE:-}
+      FRONTEND_ORIGINS: http://localhost:3000
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+volumes:
+  pgdata:
+  valkeydata:
