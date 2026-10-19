@@ -34,6 +34,10 @@ type LocationLookup = { city: string; state: string; localities: string[] };
 const initial = {
   name: '',
   phone: '',
+  nickname: '',
+  age: '',
+  gender: '',
+  motivation: '',
   pincode: '',
   city: '',
   state: '',
@@ -50,6 +54,8 @@ export default function Onboarding() {
   const profile = useResource<Profile>('/api/v1/users/me');
   const [form, setForm] = useState(initial),
     [selected, setSelected] = useState<Record<string, string>>({}),
+    [languages, setLanguages] = useState<string[]>([]),
+    [language, setLanguage] = useState(''),
     [localities, setLocalities] = useState<string[]>([]),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
@@ -75,9 +81,14 @@ export default function Onboarding() {
         ? p.name
         : user?.fullName || user?.firstName || '',
       phone: p.phone || '',
+      nickname: p.nickname || '',
+      age: p.age?.toString() || '',
+      gender: p.gender || '',
+      motivation: p.motivation || '',
       street_address: p.location?.street_address || '',
       search_radius_km: p.search_radius_km,
     });
+    setLanguages(p.languages || []);
     setSelected(
       Object.fromEntries(
         p.sports.map((item) => [item.sport, item.skill_level]),
@@ -179,6 +190,11 @@ export default function Onboarding() {
         body: JSON.stringify({
           ...form,
           name: form.name.trim(),
+          nickname: form.nickname.trim() || null,
+          age: form.age ? Number(form.age) : null,
+          gender: form.gender || null,
+          motivation: form.motivation || null,
+          languages,
           phone: normalizePhone(form.phone),
           street_address: form.street_address.trim() || null,
           sports: Object.entries(selected).map(([sport, skill_level]) => ({
@@ -198,6 +214,16 @@ export default function Onboarding() {
     } finally {
       setBusy(false);
     }
+  }
+  function addLanguage() {
+    const value = language.trim();
+    if (!value || languages.length >= 10) return;
+    setLanguages((old) =>
+      old.some((item) => item.toLowerCase() === value.toLowerCase())
+        ? old
+        : [...old, value],
+    );
+    setLanguage('');
   }
   function nameValid() {
     return !!form.name.trim();
@@ -264,6 +290,57 @@ export default function Onboarding() {
                     placeholder="+91 98765 43210"
                     value={form.phone}
                     onChange={(e) => update('phone', e.target.value)}
+                  />
+                </Field>
+                <Field
+                  id="nickname"
+                  label="Nickname (optional)"
+                  description="What do your friends call you?"
+                >
+                  <Input
+                    id="nickname"
+                    maxLength={80}
+                    value={form.nickname}
+                    onChange={(e) => update('nickname', e.target.value)}
+                    placeholder="Your courtside name"
+                  />
+                </Field>
+                <Field
+                  id="age"
+                  label="Age (optional)"
+                  description="Only visible to you."
+                >
+                  <Input
+                    id="age"
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={form.age}
+                    onChange={(e) => update('age', e.target.value)}
+                  />
+                </Field>
+                <Field
+                  id="gender"
+                  label="Gender (optional)"
+                  description="Only visible to you."
+                >
+                  <OptionSelect
+                    id="gender"
+                    label="Gender (optional)"
+                    value={form.gender || 'skip'}
+                    onChange={(value) =>
+                      update('gender', value === 'skip' ? '' : value)
+                    }
+                    options={[
+                      { value: 'skip', label: 'Skip for now' },
+                      { value: 'woman', label: 'Woman' },
+                      { value: 'man', label: 'Man' },
+                      { value: 'non_binary', label: 'Non-binary' },
+                      {
+                        value: 'prefer_not_to_say',
+                        label: 'Prefer not to say',
+                      },
+                    ]}
                   />
                 </Field>
               </CardContent>
@@ -396,12 +473,12 @@ export default function Onboarding() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-4">
                   {sports.map((sport) => (
                     <div
                       key={sport}
                       className={cn(
-                        'flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3',
+                        'space-y-4 rounded-xl border p-4',
                         selected[sport] && 'border-primary/30 bg-accent/40',
                       )}
                     >
@@ -424,19 +501,175 @@ export default function Onboarding() {
                         {sport}
                       </Label>
                       {selected[sport] && (
-                        <div className="w-32">
-                          <OptionSelect
-                            label={`${sport} skill level`}
-                            value={selected[sport]}
-                            onChange={(value) =>
-                              setSelected((old) => ({ ...old, [sport]: value }))
+                        <fieldset>
+                          <legend className="mb-3 text-xs font-medium text-muted-foreground">
+                            Your level in {sport}
+                          </legend>
+                          <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
+                            {skillLevels.map((level, index) => (
+                              <label
+                                key={level.value}
+                                className="min-w-0 cursor-pointer text-center"
+                              >
+                                <input
+                                  type="radio"
+                                  className="peer sr-only"
+                                  name={`level-${sport}`}
+                                  value={level.value}
+                                  checked={selected[sport] === level.value}
+                                  onChange={() =>
+                                    setSelected((old) => ({
+                                      ...old,
+                                      [sport]: level.value,
+                                    }))
+                                  }
+                                />
+                                <span
+                                  aria-hidden="true"
+                                  className={cn(
+                                    'mx-auto flex aspect-square w-full max-w-16 items-center justify-center rounded-xl border-2 border-transparent text-2xl font-black transition peer-checked:border-foreground peer-checked:ring-2 peer-checked:ring-foreground/20 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4',
+                                    [
+                                      'bg-lime-200 text-lime-950',
+                                      'bg-emerald-300 text-emerald-950',
+                                      'bg-orange-300 text-orange-950',
+                                      'bg-blue-300 text-blue-950',
+                                      'bg-yellow-200 text-yellow-950',
+                                    ][index],
+                                  )}
+                                >
+                                  {level.label[0]}
+                                </span>
+                                <span className="mt-2 block break-words text-[10px] sm:text-xs">
+                                  {level.label}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            {
+                              (
+                                {
+                                  hobby:
+                                    'A casual hit, with no pressure to compete.',
+                                  beginner:
+                                    'Learning the basics and finding your rhythm.',
+                                  intermediate:
+                                    'Comfortable with the basics and ready for a challenge.',
+                                  advanced:
+                                    'Consistent technique and competitive games.',
+                                  pro: 'Experienced in tournaments and high-level competition.',
+                                } as Record<string, string>
+                              )[selected[sport]]
                             }
-                            options={skillLevels}
-                          />
-                        </div>
+                          </p>
+                        </fieldset>
                       )}
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-none">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary">04</Badge>
+                  <CardTitle>Make it your game</CardTitle>
+                </div>
+                <CardDescription>
+                  Optional details to help us get to know you. Leave these blank
+                  to skip for now.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <fieldset>
+                  <legend className="mb-3 text-sm font-medium">
+                    What brings you here?
+                  </legend>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[
+                      {
+                        value: 'starting_out',
+                        label: 'Starting my sporting journey',
+                      },
+                      { value: 'comeback', label: 'Making a comeback' },
+                      {
+                        value: 'try_something_new',
+                        label: 'Trying a new sport',
+                      },
+                      { value: 'just_for_fun', label: 'Just here to enjoy' },
+                    ].map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={
+                          form.motivation === option.value
+                            ? 'default'
+                            : 'outline'
+                        }
+                        aria-pressed={form.motivation === option.value}
+                        className="h-auto min-h-12 whitespace-normal justify-start"
+                        onClick={() =>
+                          update(
+                            'motivation',
+                            form.motivation === option.value
+                              ? ''
+                              : option.value,
+                          )
+                        }
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </fieldset>
+                <div className="space-y-3">
+                  <Field
+                    id="language"
+                    label="Languages you speak (optional)"
+                    description="Add up to 10 languages you are comfortable playing in."
+                  >
+                    <div className="flex gap-2">
+                      <Input
+                        id="language"
+                        value={language}
+                        maxLength={40}
+                        placeholder="e.g. Hindi, English"
+                        onChange={(e) => setLanguage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addLanguage();
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!language.trim() || languages.length >= 10}
+                        onClick={addLanguage}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </Field>
+                  <div className="flex flex-wrap gap-2" aria-live="polite">
+                    {languages.map((item) => (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        key={item}
+                        aria-label={`Remove ${item}`}
+                        onClick={() =>
+                          setLanguages((old) =>
+                            old.filter((value) => value !== item),
+                          )
+                        }
+                      >
+                        {item} ×
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -470,6 +703,7 @@ export default function Onboarding() {
                 'Add your details',
                 'Choose your neighborhood',
                 'Pick your sports',
+                'Make it personal (optional)',
               ].map((item, index) => (
                 <div
                   key={item}

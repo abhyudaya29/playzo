@@ -53,12 +53,15 @@ Typing, online presence, attachments, visible read receipts, and browser push ar
 
 ## Database and local checks
 
-Startup takes a database advisory lock, creates new tables, and applies the versioned additive migrations in `backend/app/migrations.py`. Existing connection rows gain introduction, sport, and creation time fields; games gain the approval flag. Rejected legacy connection statuses become declined. Existing accepted connections and community/game members acquire their unique conversation when opening the inbox. Existing application data is retained.
+Run `./evolve.sh` explicitly to apply the numbered SQL files in `backend/evolutions/` under a database advisory lock. API startup does not change the schema. Existing connection rows gain introduction, sport, and creation time fields; games gain the approval flag. Rejected legacy connection statuses become declined. Existing accepted connections and community/game members acquire their unique conversation when opening the inbox. Existing application data is retained.
 
 Run from the repository root:
 
 ```sh
-docker compose up -d --build api
+docker compose up -d db valkey
+docker compose build api
+./evolve.sh
+docker compose up -d api
 docker compose exec -T api python - < backend/tests/test_social.py
 ```
 

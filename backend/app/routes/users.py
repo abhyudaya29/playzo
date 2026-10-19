@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import current_user, db_session
 from app.models import Location, Sport, User
-from app.schemas import OnboardInput, SportInput
+from app.schemas import OnboardInput
 
 router = APIRouter(prefix="/api/v1/users")
 
@@ -20,6 +20,11 @@ async def me(
         "id": user.id,
         "name": user.name,
         "phone": user.phone,
+        "nickname": user.nickname,
+        "age": user.age,
+        "gender": user.gender,
+        "motivation": user.motivation,
+        "languages": user.languages,
         "onboarding_completed": user.onboarding_completed,
         "search_radius_km": user.search_radius_km,
         "sports": [{"sport": x.sport, "skill_level": x.skill_level} for x in prefs],
@@ -41,13 +46,16 @@ async def onboarding(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(db_session),
 ) -> dict:
-    if any(x.skill_level not in ("beginner", "intermediate", "advanced") for x in data.sports):
-        raise HTTPException(422, "Invalid skill level")
     if len({x.sport for x in data.sports}) != len(data.sports):
         raise HTTPException(422, "Duplicate sports")
 
     user.name = data.name
     user.phone = data.phone
+    user.nickname = (data.nickname.strip() or None) if data.nickname else None
+    user.age = data.age
+    user.gender = data.gender
+    user.motivation = data.motivation
+    user.languages = data.languages
     user.search_radius_km = data.search_radius_km
     user.onboarding_completed = True
 

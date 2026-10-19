@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.cache import valkey
 from app.config import FRONTEND_ORIGINS
-from app.database import engine, init_db
+from app.database import engine
 from app.routes.connections import router as connections_router
 from app.routes.conversations import router as conversations_router
 from app.routes.requests import router as requests_router
@@ -20,7 +20,6 @@ from app.routes.users import router as users_router
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    await init_db()
     yield
     await valkey.aclose()
     await engine.dispose()

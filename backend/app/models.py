@@ -32,6 +32,11 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(150), default="Player")
     # Self-reported contact number only; saving it does not verify ownership.
     phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    nickname: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    gender: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    motivation: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    languages: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     onboarding_completed: Mapped[bool] = mapped_column(default=False)
     search_radius_km: Mapped[int] = mapped_column(Integer, default=5)

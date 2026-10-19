@@ -6,6 +6,24 @@ import { fileURLToPath } from 'node:url';
 export default function nextConfig(phase) {
   return {
     output: 'standalone',
+    async headers() {
+      return [
+        {
+          source: '/sw.js',
+          headers: [
+            {
+              key: 'Content-Type',
+              value: 'application/javascript; charset=utf-8',
+            },
+            {
+              key: 'Cache-Control',
+              value: 'no-cache, no-store, must-revalidate',
+            },
+            { key: 'Service-Worker-Allowed', value: '/' },
+          ],
+        },
+      ];
+    },
     // Keep production builds from overwriting chunks used by the dev server.
     distDir: phase === PHASE_DEVELOPMENT_SERVER ? '.next-dev' : '.next',
     outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),

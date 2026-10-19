@@ -22,7 +22,8 @@ from fastapi import Header
 from sqlalchemy import delete, func, select
 
 from app.cache import valkey
-from app.database import Session, engine, init_db
+from app.database import Session, engine
+from app.evolve import evolve
 from app.dependencies import auth_sub
 from app.main import app
 from app.models import (
@@ -46,7 +47,7 @@ from app.models import (
 
 class SocialTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        await init_db()
+        await evolve(check=True)
         self.ids = []
         self.subjects = []
         async with Session() as db:

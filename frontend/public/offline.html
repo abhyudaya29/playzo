@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#6d28d9" />
+    <title>Playzo · Offline</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        background: #fafafa;
+        color: #18181b;
+        font: 16px/1.6 system-ui;
+      }
+      main {
+        max-width: 360px;
+        padding: 32px;
+      }
+      strong {
+        color: #6d28d9;
+      }
+      h1 {
+        line-height: 1.2;
+      }
+      p {
+        color: #52525b;
+      }
+      button {
+        background: #6d28d9;
+        color: white;
+        border: 0;
+        border-radius: 10px;
+        padding: 14px 22px;
+        font: inherit;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <strong>PLAYZO</strong>
+      <h1>Back in the game soon.</h1>
+      <p>
+        You’re offline. Connect to the internet to find players, check your
+        games, or catch up with your crew.
+      </p>
+      <button onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

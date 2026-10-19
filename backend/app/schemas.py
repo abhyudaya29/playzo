@@ -1,19 +1,27 @@
 from datetime import datetime
 import re
 from uuid import UUID
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 
+SkillLevel = Literal["hobby", "beginner", "intermediate", "advanced", "pro"]
+
+
 class SportInput(BaseModel):
     sport: str = Field(min_length=2, max_length=60)
-    skill_level: str
+    skill_level: SkillLevel
 
 
 class OnboardInput(BaseModel):
     name: str = Field(min_length=1, max_length=150)
     phone: Optional[str] = Field(default=None, max_length=30)
+    nickname: Optional[str] = Field(default=None, max_length=80)
+    age: Optional[int] = Field(default=None, ge=1, le=120)
+    gender: Optional[Literal["woman", "man", "non_binary", "prefer_not_to_say"]] = None
+    motivation: Optional[Literal["starting_out", "comeback", "try_something_new", "just_for_fun"]] = None
+    languages: list[str] = Field(default_factory=list, max_length=10)
     pincode: str = Field(pattern=r"^\d{6}$")
     locality: str = Field(min_length=1, max_length=160)
     city: str = Field(min_length=1, max_length=160)
@@ -23,6 +31,21 @@ class OnboardInput(BaseModel):
     longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     search_radius_km: int = Field(default=5, ge=1, le=30)
     sports: list[SportInput] = Field(min_length=1)
+
+    @field_validator("languages")
+    @classmethod
+    def clean_languages(cls, values: list[str]) -> list[str]:
+        cleaned = list(dict.fromkeys(value.strip().title() for value in values))
+        if any(not value or len(value) > 40 for value in cleaned):
+            raise ValueError("Languages must contain 1–40 characters")
+        return cleaned
+
+    @field_validator("name")
+    @classmethod
+    def nonblank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Enter your name")
+        return value.strip()
 
     @field_validator("phone")
     @classmethod

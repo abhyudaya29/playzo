@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { InstallApp } from '@/components/PwaSupport';
 import Brand from '@/components/Brand';
 import Notifications from '@/components/Notifications';
 import { Badge } from '@/components/ui/badge';
@@ -111,6 +112,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <span className="hidden text-xs text-muted-foreground sm:block">
               Let’s make time to play
             </span>
+            <InstallApp />
             <Notifications count={activity.data?.notifications || 0} />
             <UserButton afterSignOutUrl="/" />
           </div>

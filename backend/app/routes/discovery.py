@@ -18,7 +18,7 @@ async def discover(
 ):
     if not user.onboarding_completed:
         raise HTTPException(409, "Complete onboarding first")
-    if skill_level not in ("all", "beginner", "intermediate", "advanced"):
+    if skill_level not in ("all", "hobby", "beginner", "intermediate", "advanced", "pro"):
         raise HTTPException(422, "Invalid skill level")
 
     mine = await db.get(Location, user.id)

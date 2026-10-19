@@ -14,11 +14,11 @@ chmod 600 .env.release
 ./deploy.sh
 ```
 
-The script builds the frontend and API, starts PostGIS and Valkey, and waits for all services to become healthy. Run it again after copying or pulling new code to release an update. Use `--env-file PATH` or `--project-name NAME` to override the defaults. Keep the same project name between releases so the database volumes are reused. The default `playzo-release` project has separate volumes from local development; existing development records are not copied into it.
+The script requires a clean checkout, pulls the current branch with `git pull --ff-only`, builds the frontend and API, starts PostGIS and Valkey, asks `Apply pending SQL evolutions? [y/n]`, and waits for all services to become healthy. Choosing `n` verifies the schema is current and stops deployment if SQL is pending. Run it again to release updates. Use `--skip-pull` to deploy the current checkout. Non-interactive deployments must pass `--apply-evolutions` or `--skip-evolutions`. Use `--env-file PATH` or `--project-name NAME` to override the defaults. Keep the same project name between releases so the database volumes are reused. The default `playzo-release` project has separate volumes from local development; existing development records are not copied into it.
 
 Terminate HTTPS with a host reverse proxy: route the frontend domain to `127.0.0.1:3001` and the API domain to `127.0.0.1:8001`. Forward WebSocket upgrades on the API domain for chat and forward the original host/protocol headers. Configure the same frontend domain in Clerk and `FRONTEND_ORIGINS`. The script deploys to the current Docker host; it does not upload code, configure DNS/TLS, or push images to a registry.
 
-`NEXT_PUBLIC_*` settings are embedded during the frontend build. Clerk's secret key is passed only at runtime. Database migrations run automatically when the API starts. Back up the release database before updates: migrations are additive, but a failed health check does not automatically roll back images or schema. Changing `POSTGRES_PASSWORD` in the environment does not rotate the password of an existing database volume. Never run `down -v` against release data.
+`NEXT_PUBLIC_*` settings are embedded during the frontend build. Clerk's secret key is passed only at runtime. SQL evolutions run explicitly through `./evolve.sh`; API startup never changes the schema. Back up the release database before updates: migrations are additive, but a failed health check does not automatically roll back images or schema. Changing `POSTGRES_PASSWORD` in the environment does not rotate the password of an existing database volume. Never run `down -v` against release data.
 
 Inspect a release with:
 
@@ -41,7 +41,7 @@ Prerequisites: Node 20.9+, Python 3.12+ or Docker, Docker Compose.
 
 1. Copy `.env.example` to `.env` and set `CLERK_ISSUER` for your existing Clerk application.
 2. Copy `frontend/.env.example` to `frontend/.env.local` and set Clerk publishable/secret keys from the **existing** application dashboard. Never commit secrets.
-3. `docker compose up -d --build` (starts API, PostGIS, Valkey).
+3. `docker compose up -d db valkey`, then `docker compose build api`, `./evolve.sh`, and `docker compose up -d api`.
 4. `cd frontend && npm install && npm run dev`.
 5. Open http://localhost:3000, sign up and complete onboarding.
 6. API docs at http://localhost:8000/docs.
@@ -78,8 +78,32 @@ To seed nearby players, create multiple Clerk test accounts, onboard each with l
 - The app currently shows public groups and upcoming games without distance filtering. Add group/game geo-points before launch.
 - Phone numbers are collected only during onboarding and remain unverified. No phone login or SMS verification flow is implemented.
 - In-app notifications are implemented; browser push, typing indicators, online presence, attachments, and visible read receipts are deferred.
-- Startup creates missing tables and runs the versioned additive schema upgrades in `backend/app/migrations.py`.
+- Schema changes live in numbered SQL files under `backend/evolutions/` and run explicitly with `./evolve.sh`.
 - Add blocking/reporting, abuse controls, observability, consent handling and proper authorization policies before a public launch.
 - Configure a production-grade secret, backups, HTTPS, CORS and rate limits before deployment.
 
 See [the engagement flow](docs/engagement-flow.md) for requests, chats, invitations, authorization, migrations, and test commands.
+
+## Player profile and skill levels
+
+Onboarding supports optional nickname, age, gender, languages, and a reason for joining: starting out, making a comeback, trying a new sport, or playing for fun. These details are editable from Your profile. Age, gender, and contact details remain private. Choose a level for each sport: Hobby, Beginner, Intermediate, Advanced, or Pro. Discovery supports all five levels; existing profiles keep their saved levels.
+
+## SQL evolutions (no Alembic)
+
+Create a new `NNN_description.sql` in `backend/evolutions/` for every schema change. Files execute in filename order, each in a transaction, under a database advisory lock. Successful versions and SHA-256 checksums are recorded in `schema_migrations`; changed applied files fail validation. Do not edit applied SQL. The initial evolution creates fresh databases and can adopt existing prototype tables; versions recorded by the previous Python runner remain recognized. Back up existing data before evolving a release database.
+
+```bash
+# Local: start db and build api first
+./evolve.sh
+./evolve.sh -- --check
+
+# Release: start db and build api first, or use deploy.sh
+./evolve.sh --project-name playzo-release --env-file .env.release -f docker-compose.release.yml
+./deploy.sh --apply-evolutions
+```
+
+## Installable PWA
+
+Playzo includes a web manifest, regular and maskable icons, Apple home-screen metadata, and a production service worker following the [Next.js PWA guide](https://nextjs.org/docs/app/guides/progressive-web-apps). Serve over HTTPS (localhost works for testing). Supported browsers offer an Install app button in the workspace when installation is available; on iOS it explains Safari → Share → Add to Home Screen. The service worker is disabled in development. Test with `npm run build` and `npm start`. With production running on port 3100, run `node tests/check-pwa.cjs` from `frontend` (or set `PLAYWRIGHT_BASE_URL` for another port).
+
+Only a public offline fallback is cached. Profiles, chats, authentication, and API responses are never stored by the service worker. Discovery, games, and messaging require a connection. Browser push notifications are not included.

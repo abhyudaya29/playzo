@@ -103,6 +103,14 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
     await page
       .getByRole('checkbox', { name: 'Badminton', exact: true })
       .check();
+    await page.getByLabel('Nickname (optional)').fill('Court Captain');
+    await page.getByLabel('Age (optional)', { exact: true }).fill('28');
+    await page
+      .getByRole('button', { name: 'Making a comeback', exact: true })
+      .click();
+    await page.getByLabel('Languages you speak (optional)').fill('Hindi');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.getByRole('radio', { name: 'Pro', exact: true }).check();
     await context.grantPermissions(['geolocation']);
     await context.setGeolocation({ latitude: 28.6415, longitude: 77.3737 });
     await page
@@ -142,6 +150,21 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
       .getByRole('navigation', { name: 'Main navigation' })
       .getByRole('link', { name: 'Your profile' })
       .click();
+    await expect(page.getByLabel('Nickname (optional)')).toHaveValue(
+      'Court Captain',
+    );
+    await expect(
+      page.getByLabel('Age (optional)', { exact: true }),
+    ).toHaveValue('28');
+    await expect(
+      page.getByRole('button', { name: 'Making a comeback', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(
+      page.getByRole('button', { name: 'Remove Hindi', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('radio', { name: 'Pro', exact: true }),
+    ).toBeChecked();
     await expect(page.getByLabel('Phone number (optional)')).toHaveValue(
       '+919876543210',
     );
