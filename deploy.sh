@@ -12,7 +12,7 @@ usage() {
   cat <<'HELP'
 Usage: ./deploy.sh [--env-file PATH] [--project-name NAME] [--check] [--apply-evolutions|--skip-evolutions] [--skip-pull]
 
-Build and start a Playzo release on the current Docker host.
+Build and start a playhud release on the current Docker host.
   --env-file PATH      Release configuration (default: .env.release)
   --project-name NAME  Compose project/volume namespace (default: playzo-release)
   --apply-evolutions   Apply pending SQL evolutions without prompting

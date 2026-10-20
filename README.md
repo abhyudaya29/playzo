@@ -1,4 +1,4 @@
-# Playzo — sports matchmaking prototype
+# playhud — sports matchmaking prototype
 
 Next.js + Clerk + FastAPI + PostGIS + Valkey. The frontend uses shadcn/ui, Radix primitives, and Tailwind CSS with a shared neutral/violet design system.
 
@@ -46,7 +46,7 @@ Prerequisites: Node 20.9+, Python 3.12+ or Docker, Docker Compose.
 5. Open http://localhost:3000, sign up and complete onboarding.
 6. API docs at http://localhost:8000/docs.
 
-Use email/password and Google for Clerk authentication. Enable first and last name fields in Clerk's User model. In Clerk's Phone settings, disable phone sign-up, required phone numbers, sign-in with phone, and SMS authentication/MFA. Collect phone numbers only in onboarding: Playzo saves them privately on the profile as unverified contact details, without adding them to Clerk or sending an SMS. Phone verification is deferred. Local Indian mobile numbers are stored with `+91`; other numbers need their country code.
+Use email/password and Google for Clerk authentication. Enable first and last name fields in Clerk's User model. In Clerk's Phone settings, disable phone sign-up, required phone numbers, sign-in with phone, and SMS authentication/MFA. Collect phone numbers only in onboarding: playhud saves them privately on the profile as unverified contact details, without adding them to Clerk or sending an SMS. Phone verification is deferred. Local Indian mobile numbers are stored with `+91`; other numbers need their country code.
 
 For sign-up email verification, enable **Email verification code** in Clerk's Email settings and deselect **Email verification link**. The custom form explicitly requests the `email_code` strategy and only activates a session after Clerk confirms completion. A pending sign-up can resume code verification. Old email-link callback URLs offer the code flow and account navigation. Sign-in supports email-code Device Trust, authenticator/backup-code MFA, and password reset by email code.
 
@@ -104,6 +104,6 @@ Create a new `NNN_description.sql` in `backend/evolutions/` for every schema cha
 
 ## Installable PWA
 
-Playzo includes a web manifest, regular and maskable icons, Apple home-screen metadata, and a production service worker following the [Next.js PWA guide](https://nextjs.org/docs/app/guides/progressive-web-apps). Serve over HTTPS (localhost works for testing). Supported browsers offer an Install app button in the workspace when installation is available; on iOS it explains Safari → Share → Add to Home Screen. The service worker is disabled in development. Test with `npm run build` and `npm start`. With production running on port 3100, run `node tests/check-pwa.cjs` from `frontend` (or set `PLAYWRIGHT_BASE_URL` for another port).
+playhud includes a web manifest, regular and maskable icons, Apple home-screen metadata, and a production service worker following the [Next.js PWA guide](https://nextjs.org/docs/app/guides/progressive-web-apps). Serve over HTTPS (localhost works for testing). Supported browsers offer an Install app button in the workspace when installation is available; on iOS it explains Safari → Share → Add to Home Screen. The service worker is disabled in development. Test with `npm run build` and `npm start`. With production running on port 3100, run `node tests/check-pwa.cjs` from `frontend` (or set `PLAYWRIGHT_BASE_URL` for another port).
 
 Only a public offline fallback is cached. Profiles, chats, authentication, and API responses are never stored by the service worker. Discovery, games, and messaging require a connection. Browser push notifications are not included.

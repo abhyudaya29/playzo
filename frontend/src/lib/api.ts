@@ -28,7 +28,7 @@ export async function request<T>(
   } catch (error) {
     if (options.signal?.aborted) throw error;
     throw new Error(
-      'We couldn’t reach Playzo. Check your connection and try again.',
+      'We couldn’t reach playhud. Check your connection and try again.',
     );
   }
   if (!res.ok) {

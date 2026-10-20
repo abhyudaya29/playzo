@@ -1,4 +1,4 @@
-const CACHE = 'playzo-offline-v1';
+const CACHE = 'playhud-offline-v1';
 const OFFLINE = '/offline.html';
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.add(OFFLINE)));
@@ -9,7 +9,12 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key.startsWith('playzo-offline-') && key !== CACHE)
+          .filter(
+            (key) =>
+              (key.startsWith('playhud-offline-') ||
+                key.startsWith('playzo-offline-')) &&
+              key !== CACHE,
+          )
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();

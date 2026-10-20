@@ -81,7 +81,7 @@ async def onboarding(
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=6, headers={"User-Agent": "PlayzoPrototype/0.1"}) as client:
+            async with httpx.AsyncClient(timeout=6, headers={"User-Agent": "playhudPrototype/0.1"}) as client:
                 r = await client.get(
                     "https://nominatim.openstreetmap.org/search",
                     params={"postalcode": data.pincode, "country": "India", "format": "json", "limit": 1},

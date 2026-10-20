@@ -18,7 +18,7 @@ export function PwaRegistration() {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/', updateViaCache: 'none' })
       .catch((error) =>
-        console.error('Playzo offline support could not start:', error),
+        console.error('playhud offline support could not start:', error),
       );
   }, []);
   return null;
@@ -60,7 +60,7 @@ export function InstallApp() {
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Install Playzo"
+        aria-label="Install playhud"
         onClick={async () => {
           if (!prompt) {
             setHelp((value) => !value);
@@ -79,7 +79,7 @@ export function InstallApp() {
           role="status"
           className="absolute right-0 top-12 z-50 w-60 rounded-xl border bg-white p-4 text-sm shadow-lg"
         >
-          In Safari, tap Share, then “Add to Home Screen” to install Playzo.
+          In Safari, tap Share, then “Add to Home Screen” to install playhud.
           <Button
             type="button"
             variant="link"

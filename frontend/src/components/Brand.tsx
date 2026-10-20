@@ -1,13 +1,20 @@
 import Link from 'next/link';
-import { CircleDot } from 'lucide-react';
+import Image from 'next/image';
 export default function Brand() {
   return (
     <Link
       href="/"
-      className="inline-flex items-center gap-2 text-xl font-bold tracking-tight"
+      aria-label="playhud home"
+      className="inline-flex shrink-0 items-center"
     >
-      <CircleDot className="size-6 text-primary" />
-      playzo<span className="text-primary">.</span>
+      <Image
+        src="/icons/Playhud%20Indigo%20Gradient%20Logo.png"
+        alt="playhud"
+        width={1983}
+        height={793}
+        priority
+        className="h-auto w-40 rounded-md sm:w-44"
+      />
     </Link>
   );
 }

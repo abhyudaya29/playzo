@@ -1,4 +1,4 @@
-# Playzo engagement flow
+# playhud engagement flow
 
 Discover → request → accept → chat → plan a game.
 

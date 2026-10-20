@@ -25,7 +25,7 @@ async def lifespan(_: FastAPI):
     await engine.dispose()
 
 
-app = FastAPI(title="Playzo API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="playhud API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,

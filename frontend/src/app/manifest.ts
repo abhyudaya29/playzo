@@ -3,14 +3,14 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: 'Playzo — Your game. Your crew.',
-    short_name: 'Playzo',
+    name: 'playhud — Your game. Your crew.',
+    short_name: 'playhud',
     description: 'Find nearby players, build your crew, and make time to play.',
     start_url: '/dashboard',
     scope: '/',
     display: 'standalone',
     background_color: '#fafafa',
-    theme_color: '#6d28d9',
+    theme_color: '#09086b',
     icons: [
       {
         src: '/icons/icon-192.png',

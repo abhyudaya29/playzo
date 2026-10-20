@@ -1,1 +1,1 @@
-"""Playzo backend package."""
+"""playhud backend package."""

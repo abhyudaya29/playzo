@@ -510,7 +510,7 @@ export default function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
         </Button>
       )}
       <p className="text-center text-sm text-muted-foreground">
-        {signup ? 'Already have an account?' : 'New to Playzo?'}{' '}
+        {signup ? 'Already have an account?' : 'New to playhud?'}{' '}
         <a
           href={signup ? '/sign-in' : '/sign-up'}
           className="font-medium text-primary hover:underline"
