@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
@@ -8,6 +7,7 @@ PROJECT_NAME="playzo-release"
 CHECK_ONLY=false
 EVOLUTION_CHOICE=""
 SKIP_PULL=false
+SWAP_STARTED=false
 
 usage() {
   cat <<'HELP'
@@ -143,12 +143,17 @@ print(json.dumps({"text": sys.argv[1]}))
 on_deploy_error() {
   local exit_code=$?
   local line_number="${1:-unknown}"
+  local extra=""
 
   trap - ERR
 
   echo "Release failed near line $line_number (exit code $exit_code)." >&2
 
-  slack_notify ":x: Playzo release FAILED. Project: ${PROJECT_NAME}. Line: ${line_number}. Exit code: ${exit_code}. Check deployment logs on the Docker host."
+  if [[ "$SWAP_STARTED" == true ]]; then
+    extra=$'\n'":warning: The container swap had already started. Old containers may be stopped and the new ones did not become healthy."
+  fi
+
+  slack_notify ":x: Playzo release FAILED. Project: ${PROJECT_NAME}. Line: ${line_number}. Exit code: ${exit_code}. Check deployment logs on the Docker host.${extra}"
 
   echo "Inspect containers with: docker compose --project-name $PROJECT_NAME --env-file \"$ENV_FILE\" -f \"$ROOT_DIR/docker-compose.release.yml\" logs --tail=100" >&2
 
@@ -242,6 +247,39 @@ if "$CHECK_ONLY"; then
 fi
 
 # --------------------------------------------------
+# Container snapshot helpers
+# --------------------------------------------------
+
+# Prints one "service:container_id" line per running container.
+snapshot_containers() {
+  local service cid
+
+  while IFS= read -r service; do
+    [[ -n "$service" ]] || continue
+    while IFS= read -r cid; do
+      [[ -n "$cid" ]] || continue
+      printf '%s:%s\n' "$service" "${cid:0:12}"
+    done < <("${compose[@]}" ps -q "$service" 2>/dev/null || true)
+  done < <("${compose[@]}" config --services)
+}
+
+# Formats snapshot lines as a Slack-friendly bullet list.
+format_snapshot() {
+  local snapshot="$1"
+  local line
+
+  if [[ -z "$snapshot" ]]; then
+    printf '• (none)\n'
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    printf '• %s (%s)\n' "${line%%:*}" "${line##*:}"
+  done <<<"$snapshot"
+}
+
+# --------------------------------------------------
 # SQL evolution decision
 # --------------------------------------------------
 
@@ -267,6 +305,9 @@ trap 'on_deploy_error "$LINENO"' ERR
 # Build and deploy
 # --------------------------------------------------
 
+# Record what is running before this release touches anything.
+old_snapshot="$(snapshot_containers)"
+
 echo 'Building release images. Running containers stay up during the build.'
 "${compose[@]}" build --pull
 
@@ -286,11 +327,61 @@ else
     -- --check
 fi
 
+# Snapshot right before the swap: these are the containers about to be replaced.
+pre_swap_snapshot="$(snapshot_containers)"
+
+slack_notify ":octagonal_sign: Playzo release: stopping OLD containers and starting NEW ones. Project: ${PROJECT_NAME}.
+Currently running (will be replaced if their image/config changed):
+$(format_snapshot "$pre_swap_snapshot")"
+
+SWAP_STARTED=true
+
 echo 'Starting release and waiting for healthy services...'
+# Compose stops and removes the old container of each changed service,
+# then starts a new one in its place.
 "${compose[@]}" up -d --wait --wait-timeout 180 --remove-orphans
+
+SWAP_STARTED=false
 
 "${compose[@]}" ps
 
-slack_notify ":white_check_mark: Playzo release deployed SUCCESSFULLY. Project: ${PROJECT_NAME}. Services are healthy."
+new_snapshot="$(snapshot_containers)"
+
+# Work out which containers were actually replaced.
+replaced_old=""
+replaced_new=""
+unchanged=""
+
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  if grep -Fxq -- "$line" <<<"$old_snapshot"; then
+    unchanged+="${line}"$'\n'
+  else
+    replaced_new+="${line}"$'\n'
+  fi
+done <<<"$new_snapshot"
+
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  if ! grep -Fxq -- "$line" <<<"$new_snapshot"; then
+    replaced_old+="${line}"$'\n'
+  fi
+done <<<"$old_snapshot"
+
+status_table="$("${compose[@]}" ps --format 'table {{.Service}}\t{{.Status}}' 2>/dev/null || true)"
+
+success_msg=":white_check_mark: Playzo release deployed SUCCESSFULLY. Project: ${PROJECT_NAME}. All services are healthy.
+:wastebasket: OLD containers stopped and removed:
+$(format_snapshot "${replaced_old%$'\n'}")
+:rocket: NEW containers up:
+$(format_snapshot "${replaced_new%$'\n'}")
+:left_right_arrow: Unchanged (kept running):
+$(format_snapshot "${unchanged%$'\n'}")"
+
+if [[ -n "$status_table" ]]; then
+  success_msg+=$'\n''```'$'\n'"${status_table}"$'\n''```'
+fi
+
+slack_notify "$success_msg"
 
 echo 'Release is running. Configure your HTTPS reverse proxy for the frontend and API ports.'
