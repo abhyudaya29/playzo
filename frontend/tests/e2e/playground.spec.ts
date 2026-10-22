@@ -126,6 +126,19 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
       .click();
     await page.getByLabel('Languages you speak (optional)').fill('Hindi');
     await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Review my profile', exact: true })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Your player profile, all together.' }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Full name')).toHaveValue('Playzo Test');
+    await expect(page.getByLabel('Locality', { exact: true })).toHaveValue(
+      'Indirapuram',
+    );
+    await expect(
+      page.getByRole('radio', { name: 'Pro', exact: true }),
+    ).toBeChecked();
     const discover = page.waitForResponse(
       (response) =>
         response.url().includes('/api/v1/discover/players?') &&

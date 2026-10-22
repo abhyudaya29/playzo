@@ -20,6 +20,7 @@ import Notifications from '@/components/Notifications';
 import { Badge } from '@/components/ui/badge';
 import { useResource } from '@/lib/use-resource';
 import { Activity } from '@/lib/social-types';
+import { Profile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 const navigation = [
   { href: '/dashboard', label: 'Discover', icon: Compass },
@@ -32,6 +33,11 @@ const navigation = [
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const activity = useResource<Activity>('/api/v1/activity', 10000);
+  const profile = useResource<Profile>(
+    pathname === '/onboarding' ? '/api/v1/users/me' : null,
+  );
+  const settingUp =
+    pathname === '/onboarding' && profile.data?.onboarding_completed === false;
   const countFor = (href: string) =>
     href === '/requests'
       ? activity.data?.requests || 0
@@ -41,7 +47,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const current = navigation.find((item) => pathname.startsWith(item.href));
   return (
     <div className="min-h-svh">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-white p-5 md:flex">
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-white p-5',
+          !settingUp && 'md:flex',
+        )}
+      >
         <div className="px-3 py-3">
           <Brand />
         </div>
@@ -97,12 +108,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           Your game. Your crew.
         </p>
       </aside>
-      <div className="md:pl-60">
+      <div className={cn(!settingUp && 'md:pl-60')}>
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b bg-white/95 px-5 backdrop-blur-sm md:px-9">
-          <div className="min-w-0 md:hidden">
+          <div className={cn('min-w-0', !settingUp && 'md:hidden')}>
             <Brand />
           </div>
-          <div className="hidden items-center gap-3 text-sm text-muted-foreground md:flex">
+          <div
+            className={cn(
+              'hidden items-center gap-3 text-sm text-muted-foreground',
+              !settingUp && 'md:flex',
+            )}
+          >
             Workspace <ChevronRight className="size-3" />
             <span className="font-medium text-foreground">
               {current?.label}
@@ -125,7 +141,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </main>
         <nav
           aria-label="Mobile navigation"
-          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
+          className={cn(
+            'fixed inset-x-0 bottom-0 z-30 grid-cols-6 border-t bg-white pb-[env(safe-area-inset-bottom)] md:hidden',
+            settingUp ? 'hidden' : 'grid',
+          )}
         >
           {navigation.map((item) => (
             <Link

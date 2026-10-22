@@ -86,7 +86,7 @@ See [the engagement flow](docs/engagement-flow.md) for requests, chats, invitati
 
 ## Player profile and skill levels
 
-New accounts complete six steps across desktop, mobile, and PWA: gender (optional), how they want to play, personal details, neighbourhood, sports and skill levels, then optional interests and languages. The play preference (`join_individually`, `find_group`, or `host_games`) is saved and sends players to Discover, Communities, or Games after onboarding. Existing players can edit all fields from Your profile. Apply `004_play_intent.sql` with the normal evolution runner before starting the updated API.
+New accounts complete six steps across desktop, mobile, and PWA: gender (optional), how they want to play, personal details, neighbourhood, sports and skill levels, then optional interests and languages. Avatar and play-style cards lead into a combined, editable review before saving. Framer Motion animates the question transitions and respects reduced-motion preferences. The play preference (`join_individually`, `find_group`, or `host_games`) is saved and sends players to Discover, Communities, or Games after onboarding. Existing players can edit all fields from Your profile. Apply `004_play_intent.sql` with the normal evolution runner before starting the updated API.
 
 Onboarding supports optional nickname, age, gender, languages, and a reason for joining: starting out, making a comeback, trying a new sport, or playing for fun. These details are editable from Your profile. Age, gender, and contact details remain private. Choose a level for each sport: Hobby, Beginner, Intermediate, Advanced, or Pro. Discovery supports all five levels; existing profiles keep their saved levels.
 

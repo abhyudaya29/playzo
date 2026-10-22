@@ -88,6 +88,9 @@ export async function createActor(
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Badminton', exact: true }).check();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Review my profile', exact: true })
+    .click();
   await page.getByRole('button', { name: 'Let’s play', exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   actor.id = await page.evaluate(async () => {
