@@ -162,7 +162,14 @@ class DraftInput(BaseModel):
             if key == "pincode" and isinstance(item, str) and item.isdigit() and len(item) < 6:
                 continue
             field = OnboardInput.model_fields[key]
-            TypeAdapter(Annotated[field.annotation, *field.metadata]).validate_python(item)
+            # Plain fields (e.g. gender, visibility and booleans) have no
+            # metadata. Annotated[T] without an annotation raises TypeError
+            # rather than a Pydantic validation error, turning drafts into 500s.
+            annotation = (
+                Annotated[field.annotation, *field.metadata]
+                if field.metadata else field.annotation
+            )
+            TypeAdapter(annotation).validate_python(item)
         return value
 
 
