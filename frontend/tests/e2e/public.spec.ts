@@ -8,13 +8,19 @@ test('public pages and failed-link recovery work on desktop and mobile', async (
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
     await expect(
-      page.getByRole('heading', { name: /A little less/ }),
+      page.getByRole('heading', { name: /Got the game/ }),
     ).toBeVisible();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
       ),
     ).toBe(false);
+    await expect(
+      page.getByRole('heading', { name: /A community to come back to/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /We didn’t build this/ }),
+    ).toBeVisible();
     await page.getByRole('link', { name: 'Get started' }).click();
     await expect(
       page.getByRole('heading', { name: 'Find your people.' }),
