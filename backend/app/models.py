@@ -40,6 +40,8 @@ class User(Base):
     motivation: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     languages: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    clerk_image_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    clerk_profile_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     avatar_version: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     product_analytics_consent: Mapped[bool] = mapped_column(default=False, server_default="false")
     analytics_consent_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

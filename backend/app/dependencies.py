@@ -3,7 +3,7 @@ from functools import lru_cache
 import uuid
 
 import jwt
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 from jwt import PyJWKClient
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -52,6 +52,7 @@ def auth_sub(authorization: Optional[str] = Header(None)) -> str:
 
 
 async def current_user(
+    request: Request,
     db: AsyncSession = Depends(db_session),
     sub: str = Depends(auth_sub),
 ) -> User:
@@ -82,6 +83,9 @@ async def current_user(
     if not user.last_active_at or (now - user.last_active_at).total_seconds() >= 300:
         from zoneinfo import ZoneInfo
         from sqlalchemy import text
+        from app.services.clerk_profile import sync_clerk_profile
+        if request.url.path != "/api/v1/users/me/clerk-sync":
+            await sync_clerk_profile(db, user)
         user.last_active_at = now
         await db.execute(text("INSERT INTO daily_active_users(user_id,day) VALUES (:id,:day) ON CONFLICT DO NOTHING"),
                          {"id": user.id, "day": now.astimezone(ZoneInfo("Asia/Kolkata")).date()})

@@ -9,7 +9,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:e2e": "playwright test",
-    "test:analytics": "node --test tests/analytics.test.cjs"
+    "test:analytics": "node --test tests/analytics.test.cjs",
+    "test:onboarding": "node --test tests/onboarding-flow.test.cjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.0.0",

@@ -32,7 +32,6 @@ class OnboardInput(BaseModel):
     latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     search_radius_km: int = Field(default=5, ge=1, le=50)
-    adult_confirmed: bool = False
     bio: Optional[str] = Field(default=None, max_length=1000)
     gender_self_description: Optional[str] = Field(default=None, max_length=100)
     gender_visibility: Literal["private", "public"] = "private"

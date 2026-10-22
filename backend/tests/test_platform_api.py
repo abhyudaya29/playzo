@@ -2,7 +2,6 @@
 PLAYZO_DISPOSABLE_DB_TEST=1 python -m unittest discover -s tests -p test_platform_api.py
 """
 from datetime import datetime, timedelta, timezone
-from io import BytesIO
 import os
 import unittest
 import uuid
@@ -10,7 +9,6 @@ from unittest.mock import patch
 
 import httpx
 from fastapi import Header
-from PIL import Image
 from sqlalchemy import func, select, text
 
 from app.database import Session, engine
@@ -31,7 +29,7 @@ class PlatformApiTests(unittest.IsolatedAsyncioTestCase):
             await db.execute(text('TRUNCATE users CASCADE'))
             self.ids=[];self.subjects=[]
             for name,role in [('Viewer','USER'),('Player','USER'),('Admin','SUPER_ADMIN'),('Support','SUPPORT_AGENT'),('Third player','USER')]:
-                user=User(clerk_id='feature-test-'+str(uuid.uuid4()),name=name,role=role,adult_confirmed=True,onboarding_completed=True)
+                user=User(clerk_id='feature-test-'+str(uuid.uuid4()),name=name,role=role,onboarding_completed=True)
                 db.add(user);await db.flush()
                 db.add(Sport(user_id=user.id,sport='Badminton',skill_level='intermediate'))
                 db.add(Location(user_id=user.id,pincode='201014',locality='Indirapuram',city='Ghaziabad',state='Uttar Pradesh',latitude=28.6415,longitude=77.3737,discovery_point=func.ST_SetSRID(func.ST_MakePoint(77.3737,28.6415),4326)))
@@ -55,45 +53,69 @@ class PlatformApiTests(unittest.IsolatedAsyncioTestCase):
             response=await self.client.get('/api/v1/users/me',headers={'x-test-user':subject})
             self.assertEqual(response.status_code,200,response.text)
             self.assertEqual(response.json()['role'],'USER')
-            self.assertFalse(response.json()['adult_confirmed'])
+            self.assertNotIn('adult_confirmed',response.json())
         async with Session() as db:
             user_id=await db.scalar(select(User.id).where(User.clerk_id==subject))
             count=await db.scalar(select(func.count()).select_from(ActivityEvent).where(ActivityEvent.user_id==user_id,ActivityEvent.event_name=='user_signed_up'))
             self.assertEqual(count,1)
 
-    async def test_photo_upload_cards_public_profile_and_delete(self):
-        image=BytesIO();Image.new('RGB',(700,500),'indigo').save(image,format='JPEG')
-        photo=await self.call('PUT','/users/me/avatar',actor=1,content=image.getvalue(),headers={'content-type':'image/jpeg'})
-        self.assertTrue(photo['avatar_url'])
+    async def test_clerk_photo_sync_updates_cards_and_requests(self):
+        fetched=[]
+        clerk_data={'id':self.subjects[1],'first_name':'Signup','last_name':'Player','image_url':'https://img.clerk.com/account-photo','unsafe_metadata':{'role':'SUPER_ADMIN'}}
+        class ClerkClient:
+            async def __aenter__(self):return self
+            async def __aexit__(self,*args):pass
+            async def get(self,url,headers):
+                fetched.append(url)
+                return httpx.Response(200,request=httpx.Request('GET',url),json=clerk_data)
+        with patch('app.services.clerk_profile.CLERK_SECRET_KEY','test_secret'),patch('httpx.AsyncClient',return_value=ClerkClient()):
+            photo=await self.call('POST','/users/me/clerk-sync',actor=1,json={'avatar_url':'https://attacker.example/photo','clerk_id':self.subjects[0]})
+        self.assertEqual(photo,{'name':'Signup Player','avatar_url':'https://img.clerk.com/account-photo'})
+        self.assertEqual(fetched,['https://api.clerk.com/v1/users/'+self.subjects[1]])
         cards=await self.call('GET','/discover/players')
         card=next(p for p in cards if p['id']==self.ids[1])
         self.assertEqual(card['avatar_url'],photo['avatar_url'])
         public=await self.call('GET','/users/'+self.ids[1])
         self.assertTrue({'phone','age','latitude','longitude','street_address','postal_code','clerk_id'}.isdisjoint(public))
         self.assertIsNone(public['gender'])
-        content=await self.call('GET',photo['avatar_url'].removeprefix('/api/v1'))
-        self.assertEqual(content.headers['content-type'],'image/webp')
-        await self.call('PUT','/users/me/avatar',content=b'<svg/>',status=422)
-        entry=await self.call('POST','/connections',json={'receiver_id':self.ids[1]})
+        await self.call('POST','/connections',json={'receiver_id':self.ids[1]})
         requests=await self.call('GET','/requests')
         self.assertEqual(requests[0]['person']['avatar_url'],photo['avatar_url'])
-        await self.call('DELETE','/users/me/avatar',actor=1)
-        await self.call('GET',photo['avatar_url'].removeprefix('/api/v1'),status=404)
+        me=await self.call('GET','/users/me',actor=1)
+        self.assertEqual(me['role'],'USER')
+        await self.call('PUT','/users/me/avatar',content=b'obsolete upload',status=404)
+        clerk_data['image_url']='https://img.clerk.com/changed-photo'
+        with patch('app.services.clerk_profile.CLERK_SECRET_KEY','test_secret'),patch('httpx.AsyncClient',return_value=ClerkClient()):
+            await self.call('POST','/users/me/clerk-sync',actor=1)
+        self.assertEqual((await self.call('GET','/users/'+self.ids[1]))['avatar_url'],clerk_data['image_url'])
 
-    async def test_onboarding_drafts_age_and_partial_preferences(self):
+    async def test_clerk_outage_preserves_cached_profile(self):
         async with Session() as db:
-            user=await db.get(User,self.ids[0]);user.onboarding_completed=False;user.adult_confirmed=False;await db.commit()
+            user=await db.get(User,self.ids[0]);user.clerk_image_url='https://img.clerk.com/existing';await db.commit()
+        class OfflineClient:
+            async def __aenter__(self):return self
+            async def __aexit__(self,*args):pass
+            async def get(self,*args,**kwargs):raise httpx.ConnectError('Temporary outage')
+        with patch('app.services.clerk_profile.CLERK_SECRET_KEY','test_secret'),patch('httpx.AsyncClient',return_value=OfflineClient()):
+            await self.call('POST','/users/me/clerk-sync',status=503)
+        self.assertEqual((await self.call('GET','/users/me'))['avatar_url'],'https://img.clerk.com/existing')
+
+    async def test_onboarding_drafts_without_age_gate_and_partial_preferences(self):
+        async with Session() as db:
+            user=await db.get(User,self.ids[0]);user.onboarding_completed=False;await db.commit()
         await self.call('PATCH','/onboarding/me',json={'step':2,'profile':{'name':'Resume Me','pincode':'201','participation_interests':['join_games','host_tournaments']}})
         state=await self.call('GET','/onboarding/me')
         self.assertEqual(state['onboarding_step'],2);self.assertEqual(state['onboarding_draft']['name'],'Resume Me')
         await self.call('PATCH','/onboarding/me',json={'step':2,'profile':{'role':'SUPER_ADMIN'}},status=422)
-        data=dict(name='Resume Me',age=17,pincode='201014',city='Ghaziabad',state='Uttar Pradesh',locality='Indirapuram',latitude=28.64,longitude=77.37,adult_confirmed=True,sports=[dict(sport='Badminton',skill_level='advanced',play_intention='competitive')],participation_interests=['join_games','host_tournaments'])
-        await self.call('POST','/onboarding/complete',json=data,status=422)
-        data['age']=25
+        data=dict(name='Resume Me',age=17,pincode='201014',city='Ghaziabad',state='Uttar Pradesh',locality='Indirapuram',latitude=28.64,longitude=77.37,sports=[dict(sport='Badminton',skill_level='advanced',play_intention='competitive')],participation_interests=['join_games','host_tournaments'])
         await self.call('POST','/onboarding/complete',json=data)
         state=await self.call('GET','/users/me')
         self.assertEqual(state['role'],'USER');self.assertEqual(state['onboarding_draft'],{})
         self.assertEqual(state['sports'][0]['play_intention'],'competitive')
+        self.assertEqual(state['age'],17)
+        await self.call('GET','/discover/players')
+        await self.call('GET','/users/'+self.ids[0],actor=1)
+        await self.call('POST','/connections',json={'receiver_id':self.ids[1]})
         await self.call('PATCH','/users/me/preferences',json={'discovery_visible':False})
         await self.call('PATCH','/users/me/preferences',json={'search_radius_km':10})
         preferences=await self.call('GET','/users/me/preferences')

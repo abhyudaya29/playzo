@@ -24,7 +24,6 @@ import { useResource } from '@/lib/use-resource';
 import { Activity } from '@/lib/social-types';
 import { Profile } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import PlayerPhoto from '@/components/PlayerPhoto';
 const navigation = [
   { href: '/dashboard', label: 'Discover', icon: Compass },
   { href: '/requests', label: 'Requests', icon: Inbox },
@@ -151,15 +150,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             )}
             <InstallApp />
             <Notifications count={activity.data?.notifications || 0} />
-            {profile.data && (
-              <Link href="/onboarding" aria-label="Edit your player profile">
-                <PlayerPhoto
-                  name={profile.data.name}
-                  url={profile.data.avatar_url}
-                  className="size-8"
-                />
-              </Link>
-            )}
             <UserButton afterSignOutUrl="/" />
           </div>
         </header>

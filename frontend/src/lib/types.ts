@@ -8,7 +8,6 @@ export type Profile = {
   name: string;
   avatar_url: string | null;
   bio: string | null;
-  adult_confirmed: boolean;
   gender_self_description: string | null;
   gender_visibility: 'private' | 'public';
   discovery_visible: boolean;
@@ -48,7 +47,7 @@ export const skillLevels = [
   { value: 'beginner', label: 'Beginner' },
   { value: 'intermediate', label: 'Intermediate' },
   { value: 'advanced', label: 'Advanced' },
-  { value: 'pro', label: 'Competitive' },
+  { value: 'pro', label: 'Pro' },
 ];
 
 export type Availability = { weekday: number; time_slot: string };

@@ -1,5 +1,6 @@
 import './globals.css';
 import { PwaRegistration } from '@/components/PwaSupport';
+import ClerkProfileSync from '@/components/ClerkProfileSync';
 import AnalyticsProvider from '@/components/AnalyticsProvider';
 import { ClerkProvider } from '@clerk/nextjs';
 export const metadata = {
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body>
         <ClerkProvider>
           <PwaRegistration />
+          <ClerkProfileSync />
           <AnalyticsProvider />
           {children}
         </ClerkProvider>

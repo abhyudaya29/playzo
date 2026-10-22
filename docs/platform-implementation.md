@@ -10,11 +10,11 @@ Implementation sequence: profiles/photos → resumable onboarding/preferences/ca
 
 ## Implemented functionality
 
-- Upload, change and remove a player photo during onboarding or profile editing. JPEG/PNG/WebP uploads are streamed with a 5 MB bound, decoded in a thread, cropped to 512×512 and re-encoded as WebP. Metadata and original bytes are discarded. Photos persist in PostgreSQL without a filesystem volume. Profile photos save immediately.
+- Clerk owns account names and photos. The existing Clerk account menu manages uploads/changes/removal; there is no second avatar control in the header or separate Playzo upload endpoint. Playzo caches the verified Clerk image URL for discovery/request/profile cards, and refreshes it when Clerk account details change. Backend sync uses the Clerk Backend API with the existing server-side secret key; client-provided image URLs and metadata cannot set identity or privileges.
 - Discovery and incoming/outgoing/accepted request cards show photos. Clicking the card, photo, name or View profile opens `/players/[userId]`; connection and chat controls remain independent. Public details include bio, sports/styles, neighbourhood, availability and participation interests. Phone, age, exact address and coordinates are excluded. Gender is shown only when explicitly public.
-- Six-step onboarding with debounced and serialized server-side draft saving, explicit saves before navigation, backward navigation, a completion summary and resume. Adult eligibility is enforced on completion and participation. Existing adults with a stored age ≥18 are migrated; users without eligibility information must confirm their age eligibility.
+- Restored illustrated onboarding: gender avatars → individual/group/host cards → location → the original five colored sport-level tiles → optional preferences → review. The separate personal-name step was removed: names come from Clerk signup, and account edits use Clerk. Draft saving, backward navigation, completion and resume remain. The 18+ checkbox and backend age gate have been removed as requested; the legacy `adult_confirmed` column is unused and retained only for database compatibility.
 - Backend-managed sports; independent skill and play intention per sport; multiple participation interests; explicit optional teammate preference; private/public gender; discovery visibility; availability; optional bio and existing contact/preferences. Current rollout supports India and validates Indian PIN codes. Manual entry remains available when PIN lookup or geolocation fails.
-- Rule-based PostGIS player discovery with both radii, mutual preferences, active/adult/visible/completed eligibility and bilateral blocks. Scores combine sport, distance, skill and availability with validated configurable weights. No exact coordinates or hidden gender are returned or used to satisfy gender-specific filters.
+- Rule-based PostGIS player discovery with both radii, mutual preferences, active/visible/completed eligibility and bilateral blocks. Scores combine sport, distance, skill and availability with validated configurable weights. No exact coordinates or hidden gender are returned or used to satisfy gender-specific filters.
 - Legacy discovery preserves request/connection statuses. The new recommendation endpoint excludes existing connection records. Player, group and game list queries batch their related state rather than querying each result separately.
 - Group visibility, capacity, invitation acceptance, member profiles, owner-assigned moderators and leaving groups. Private groups require invitations; invitations are limited to accepted connections and appear in Requests. Group roles remain separate from platform roles.
 - Tournament drafts with creation/editing controls and an editing API, organizer applications and staff review, approval/publication/registration state transitions, capacity-protected registration, cancellation and participant lists. Only verified, active organizers can submit/publish/open tournaments. Interest in hosting does not grant privileges. Early starts and invalid transitions are rejected.
@@ -35,10 +35,11 @@ Apply the repository SQL evolution runner; do not edit already-applied migration
 | `006_operational_metrics.sql` | Distinct daily authenticated users and event rollup tables. |
 | `007_analytics_outbox.sql` | Account consent and operational-event delivery/retry state. |
 | `008_group_management.sql` | Group visibility/capacity and invitations. |
+| `009_clerk_profile_identity.sql` | Verified Clerk identity cache. Incomplete flows restart at the first restored illustrated step while preserving draft answers. Legacy uploaded photo data remains untouched. |
 
 Existing user registration dates were not stored before evolution 005. Migration timestamps are used for those records; historical registration/cohort analysis cannot reconstruct their real sign-up dates. Operational event tracking and daily usage start when these features are deployed.
 
-Photos are served only for the current avatar version on active accounts, with `no-store` and `nosniff` headers. The image endpoint is public to permit ordinary image rendering; signed-in public-profile endpoints enforce profile/block visibility separately. Treat a player avatar as public profile content.
+Photo URLs are supplied by Clerk. Playzo public-profile APIs still enforce account status, discovery visibility and blocks. The obsolete binary upload/serving endpoints were removed; old database avatar data is retained without being served.
 
 ## New and extended APIs
 
@@ -46,7 +47,7 @@ All paths below are relative to `/api/v1`. `/docs` supplies the full generated O
 
 | Area | Endpoints |
 | --- | --- |
-| Profile | `GET/PATCH /users/me`, `GET /users/{user_id}`, `PUT/DELETE /users/me/avatar`, `GET /avatars/{user_id}/{version}` |
+| Profile | `GET/PATCH /users/me`, `GET /users/{user_id}`, `POST /users/me/clerk-sync` |
 | Preferences | `GET/PATCH /users/me/preferences`, `GET/PUT /users/me/sports`, `PATCH /users/me/analytics-consent` |
 | Onboarding | `GET/PATCH /onboarding/me`, `POST /onboarding/complete`; compatible `PUT /users/me/onboarding` remains |
 | Catalog/discovery | `GET /sports`, `GET /discovery/{players,groups,games,tournaments}`; compatible `GET /discover/players` remains |
@@ -66,6 +67,14 @@ The attachment's suggested frontend event-ingestion endpoint was intentionally n
 New routes: `/players/[userId]`, `/tournaments`, `/privacy`, `/admin`, `/admin/users`, `/admin/users/[userId]`, `/admin/activity`, `/admin/groups`, `/admin/games`, `/admin/tournaments`, `/admin/reports`, `/admin/analytics`, `/admin/settings`, `/admin/audit-logs`.
 
 Existing `/onboarding`, `/dashboard`, `/requests`, `/groups` and `/games` are extended. The Clerk middleware protects the new authenticated routes; backend permission checks remain authoritative.
+
+## Clerk account identity configuration
+
+The API service now receives the **existing** `CLERK_SECRET_KEY` in both Compose files. Keep it server-side; no new public secret or frontend variable is required. Apply migration `009_clerk_profile_identity.sql` before starting the new API. On local non-Docker runs, make the same key available to the backend process through your existing environment configuration.
+
+The client watches Clerk account changes and requests `/api/v1/users/me/clerk-sync`. The server fetches the authenticated Clerk subject directly, and caches only its name/photo. Normal authenticated activity also refreshes the cache periodically. Clerk outages preserve cached identity and do not prevent normal app use. Without the API secret, explicit sync returns a configuration error, while JWT authentication continues to function.
+
+Clerk's [UserProfile/account UI](https://clerk.com/docs/js-frontend/reference/components/user/user-profile) remains responsible for changing photos; the server sync follows [Clerk's getUser endpoint](https://clerk.com/docs/reference/backend/user/get-user). Gender is still self-reported, private by default, and never inferred from Clerk account details.
 
 ## Role provisioning and access
 
@@ -134,15 +143,16 @@ The database and Valkey must already be running before `run --no-deps` (for firs
 
 The base release works without PostHog configuration. Without worker/beat (or an equivalent scheduled maintenance call), automatic retention, daily event aggregation and server Cloud delivery do not run. Maintenance can also be invoked through `app.worker.maintain()` from a trusted scheduled Python process.
 
-After deployment check `/health`, `/docs`, Clerk sign-in, profile photo upload/read, onboarding, a connection round-trip, non-admin rejection at `/admin`, and the worker/beat logs. Live Cloud ingestion, VPS networking and deployed CORS/health need verification in the target environment.
+After deployment check `/health`, `/docs`, Clerk sign-in, profile photo update in Clerk and display in player cards, onboarding, a connection round-trip, non-admin rejection at `/admin`, and the worker/beat logs. Live Cloud ingestion, VPS networking and deployed CORS/health need verification in the target environment.
 
 ## Validation
 
 Validation used isolated PostGIS 16/Valkey containers on separate localhost ports, disposable test credentials, and a virtual environment under `/private/tmp`. Production credentials/databases were not used. API tests override authentication only inside their own test process; JWT verification is separately tested with ephemeral signing keys.
 
-- Production Next.js build and TypeScript checking passed.
-- Complete backend regression suite: **44 tests passed**, including connection abuse limits, host game transitions, group rejoining, new-user creation, JWT validation, PostHog retries and migration data preservation.
+- Production Next.js build and TypeScript checking passed. The restored illustrated onboarding has separate isolated browser tests (`npm run test:onboarding`) using real UI components with mocked Clerk/API responses; no external accounts are created.
+- Complete backend regression suite: **45 tests passed**, including verified Clerk identity sync, cached identity during outages, onboarding/discovery without the removed age gate, connection limits, group/game transitions, JWT validation, analytics retries and migration preservation.
 - Analytics unit tests: 3 passed (consent, one-time initialization, property filtering, identity changes/logout and SDK outage isolation).
+- Restored onboarding browser checks: **3 passed**, covering the illustrated signup flow, Clerk account controls during profile editing, and draft resume at 320 px. These use real components and mocked account/API data.
 - Public Playwright checks: 3 passed with installed Chrome, including mobile layout, privacy controls and new-route authentication guards.
 - Legacy-data upgrade verified player fields/sports survive evolution 005–008. Existing migration checks passed repeat execution, checksum enforcement, pending detection and transactional rollback.
 - Live backend regression tests covered WebSocket authorization, replay prevention, membership revocation and recovery from Pub/Sub outages.
@@ -164,7 +174,7 @@ npm run test:analytics
 npm run test:e2e -- tests/e2e/public.spec.ts
 ```
 
-The signed-in Clerk browser scenarios were updated for six-step onboarding but were not run against a live Clerk project in this session. Browser-level photo upload and staff-action flows still need an authenticated staging smoke test; their APIs are covered by integration tests.
+The signed-in Clerk browser scenarios were updated for six-step onboarding but were not run against a live Clerk project in this session. Live Clerk photo uploads and staff-action flows still need an authenticated staging smoke test; their APIs are covered by integration tests.
 
 ## Remaining limitations
 
@@ -174,7 +184,7 @@ This is a substantial implementation of the attachment, not a claim that every s
 - Matching ranks a bounded window of the nearest 1,000 eligible players. Dense-region discovery would benefit from moving the score calculation into SQL for deeper pagination.
 - Teammate preferences are global, not sport-specific. Sports are dynamic; the legacy skill-level vocabulary remains fixed (`hobby`, `beginner`, `intermediate`, `advanced`, `pro`, displayed as Competitive). Multi-country onboarding is not implemented.
 - The admin directory searches names and does not import or expose Clerk email addresses. Detailed report/moderation history is available through the report queue, activity and audit views rather than all being consolidated into the user-detail page.
-- Tournament eligibility currently means adult, active accounts and valid organizer/registration state. Brackets, payments, structured results, per-sport tournament formats and additional custom eligibility rules are not implemented. Host draft editing and game completion/cancellation have dedicated controls; structured tournament results remain future work.
+- Tournament eligibility currently means active accounts and valid organizer/registration state. Brackets, payments, structured results, per-sport tournament formats and additional custom eligibility rules are not implemented. Host draft editing and game completion/cancellation have dedicated controls; structured tournament results remain future work.
 - Organizer verification and tournament publication review remain mandatory in this release. The approval setting currently validates to `true`; disabling review is rejected rather than silently bypassing verification.
 - Overview date filters apply to registrations and their trend; operational totals are lifetime and active users use rolling windows. Selected charts and the PostgreSQL funnel/retention are implemented; median time to first connection, complete acquisition reporting, historical activity charts, and every proposed conversion chart are not.
 - No abandonment event is fabricated from closing a browser tab. Server resume state exists, but a defined inactivity window/background abandonment rule is still needed for that metric.
@@ -206,7 +216,6 @@ The pre-existing `.env.release.example` modification is excluded.
 - `backend/app/routes/tournaments.py`
 - `backend/app/routes/users.py`
 - `backend/app/schemas.py`
-- `backend/app/services/avatars.py`
 - `backend/app/services/matching.py`
 - `backend/app/services/platform.py`
 - `backend/app/social.py`
@@ -243,7 +252,6 @@ The pre-existing `.env.release.example` modification is excluded.
 - `frontend/src/components/GameStatusControls.tsx`
 - `frontend/src/components/GroupManagement.tsx`
 - `frontend/src/components/PlayerPhoto.tsx`
-- `frontend/src/components/ProfilePhotoUpload.tsx`
 - `frontend/src/components/ReportButton.tsx`
 - `frontend/src/components/ScheduleGameDialog.tsx`
 - `frontend/src/components/Shell.tsx`
@@ -257,3 +265,12 @@ The pre-existing `.env.release.example` modification is excluded.
 - `frontend/tests/analytics.test.cjs`
 - `frontend/tests/e2e/public.spec.ts`
 - `frontend/tests/helpers/social-actor.ts`
+
+### Restoration follow-up files
+
+- `backend/app/services/clerk_profile.py`
+- `backend/evolutions/009_clerk_profile_identity.sql`
+- `frontend/src/components/ClerkProfileSync.tsx`
+- `frontend/tests/onboarding-flow.test.cjs`
+
+The user's existing `.env.analytics.example` and `.env.release.example` edits were preserved.

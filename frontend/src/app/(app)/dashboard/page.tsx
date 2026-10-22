@@ -90,9 +90,7 @@ export default function Dashboard() {
     }
   }, [profile.data, initialized]);
   const result = useResource<Player[]>(
-    profile.data?.onboarding_completed &&
-      profile.data?.adult_confirmed &&
-      initialized
+    profile.data?.onboarding_completed && initialized
       ? `/api/v1/discover/players?sport=${encodeURIComponent(sport)}&radius_km=${searchRadius}&skill_level=${level}&page=${page}&page_size=24`
       : null,
     10000,
@@ -244,9 +242,7 @@ export default function Dashboard() {
       </Card>
       {profile.loading && !profile.data ? (
         <CardSkeletons />
-      ) : profile.data &&
-        (!profile.data.onboarding_completed ||
-          !profile.data.adult_confirmed) ? (
+      ) : profile.data && !profile.data.onboarding_completed ? (
         <EmptyState
           title="Your next teammate is out there"
           description="Add your location and sports to discover players near you."

@@ -13,3 +13,5 @@ CLERK_AUDIENCE = os.getenv("CLERK_AUDIENCE", "")
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",")
 VALKEY_URL = os.getenv("VALKEY_URL", "redis://localhost:6379/0")
+
+CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "").strip()

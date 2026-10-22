@@ -18,7 +18,7 @@ export default function Privacy() {
         Your public player profile contains your display name, photo,
         neighbourhood, sports, bio and playing availability. Age, phone number
         and exact location stay private. Gender is private unless you choose to
-        make it public. Playzo is currently for players aged 18 and older.
+        make it public.
       </p>
       <p className="text-sm leading-7 text-muted-foreground">
         We keep operational records of meaningful actions such as connections,

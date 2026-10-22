@@ -1,14 +1,12 @@
 from datetime import datetime, timezone
-import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from starlette.concurrency import run_in_threadpool
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import current_user, db_session
-from app.models import Location, Sport, User, UserAvatar
-from app.services.avatars import MAX_UPLOAD, sanitize_avatar
+from app.models import Location, Sport, User
+from app.services.clerk_profile import sync_clerk_profile
 from app.services.platform import avatar_url, person, record, require_player, settings, validate_sports
 from app.social import blocked
 from app.schemas import AnalyticsConsentInput, OnboardInput, PreferencesInput, ProfilePatch, SportInput
@@ -27,7 +25,6 @@ async def me(
         "id": user.id,
         "avatar_url": avatar_url(user),
         "bio": user.bio,
-        "adult_confirmed": user.adult_confirmed,
         "gender_self_description": user.gender_self_description,
         "gender_visibility": user.gender_visibility,
         "discovery_visible": user.discovery_visible,
@@ -66,16 +63,11 @@ async def onboarding(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(db_session),
 ) -> dict:
-    if data.age is not None and data.age < 18:
-        raise HTTPException(422, "Playzo is currently for players aged 18 and older")
-    if not data.adult_confirmed and not (data.age is not None and data.age >= 18):
-        raise HTTPException(422, "Confirm that you are at least 18 to continue")
     await validate_sports(db, [x.sport for x in data.sports])
     config = await settings(db)
     if data.search_radius_km > config["maximum_radius_km"]:
         raise HTTPException(422, "Discovery radius exceeds the platform limit")
     completed_before = user.onboarding_completed
-    user.adult_confirmed = True
     user.bio = data.bio
     user.gender_self_description = data.gender_self_description if data.gender == "other" else None
     user.gender_visibility = data.gender_visibility
@@ -91,7 +83,8 @@ async def onboarding(
     if len({x.sport for x in data.sports}) != len(data.sports):
         raise HTTPException(422, "Duplicate sports")
 
-    user.name = data.name
+    if not user.clerk_profile_synced_at:
+        user.name = data.name
     user.phone = data.phone
     user.nickname = (data.nickname.strip() or None) if data.nickname else None
     user.age = data.age
@@ -161,7 +154,8 @@ async def onboarding(
 
 @router.patch("/me")
 async def patch_profile(data: ProfilePatch, user=Depends(current_user), db=Depends(db_session)):
-    user.name = data.name
+    if not user.clerk_profile_synced_at:
+        user.name = data.name
     user.bio = data.bio
     user.updated_at = datetime.now(timezone.utc)
     record(db, user.id, "profile_updated")
@@ -169,37 +163,11 @@ async def patch_profile(data: ProfilePatch, user=Depends(current_user), db=Depen
     return {"success": True}
 
 
-@router.put("/me/avatar")
-async def upload_avatar(request: Request, user=Depends(current_user), db=Depends(db_session)):
-    content = bytearray()
-    async for chunk in request.stream():
-        content.extend(chunk)
-        if len(content) > MAX_UPLOAD:
-            raise HTTPException(413, "Choose an image under 5 MB")
-    sanitized = await run_in_threadpool(sanitize_avatar, bytes(content))
-    # Lock the user so concurrent changes cannot leave version and content apart.
-    await db.refresh(user, with_for_update=True)
-    avatar = await db.get(UserAvatar, user.id)
-    if avatar:
-        avatar.content = sanitized
-    else:
-        db.add(UserAvatar(user_id=user.id, content=sanitized))
-    user.avatar_version = str(uuid.uuid4())
-    record(db, user.id, "profile_updated")
+@router.post("/me/clerk-sync")
+async def sync_account(user=Depends(current_user), db=Depends(db_session)):
+    await sync_clerk_profile(db, user, required=True)
     await db.commit()
-    return {"avatar_url": avatar_url(user)}
-
-
-@router.delete("/me/avatar")
-async def delete_avatar(user=Depends(current_user), db=Depends(db_session)):
-    await db.refresh(user, with_for_update=True)
-    avatar = await db.get(UserAvatar, user.id)
-    if avatar:
-        await db.delete(avatar)
-    user.avatar_version = None
-    record(db, user.id, "profile_updated")
-    await db.commit()
-    return {"avatar_url": None}
+    return {"name": user.name, "avatar_url": avatar_url(user)}
 
 
 @router.get("/me/preferences")
@@ -255,7 +223,6 @@ async def public_profile(user_id: str, user=Depends(current_user), db=Depends(db
         require_player(user)
     other = await db.get(User, user_id)
     if (not other or other.account_status != "active" or not other.onboarding_completed
-            or (user_id != user.id and other.age is not None and other.age < 18)
             or (user.id != user_id and await blocked(db, user.id, user_id))):
         raise HTTPException(404, "Player not found")
     # Hidden profiles remain visible to accepted connections only.
@@ -264,7 +231,7 @@ async def public_profile(user_id: str, user=Depends(current_user), db=Depends(db
     connection = await db.scalar(select(Connection).where(or_(
         and_(Connection.requester_id == user.id, Connection.receiver_id == user_id),
         and_(Connection.receiver_id == user.id, Connection.requester_id == user_id))))
-    if user.id != user_id and (not other.discovery_visible or not other.adult_confirmed):
+    if user.id != user_id and not other.discovery_visible:
         if not connection or connection.status != "accepted":
             raise HTTPException(404, "Player not found")
     sports = (await db.execute(select(Sport).where(Sport.user_id == user_id))).scalars().all()

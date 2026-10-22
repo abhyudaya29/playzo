@@ -56,7 +56,6 @@ class SocialTests(unittest.IsolatedAsyncioTestCase):
                 user = User(
                     clerk_id="social-test-" + str(uuid.uuid4()),
                     name="Social Test " + name,
-                    adult_confirmed=True,
                     onboarding_completed=True,
                 )
                 db.add(user)

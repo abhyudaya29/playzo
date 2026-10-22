@@ -4,6 +4,7 @@ import { API } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 export function photoUrl(url?: string | null) {
+  if (url?.startsWith('https://')) return url;
   return url?.startsWith('/api/') ? `${API}${url}` : undefined;
 }
 export default function PlayerPhoto({

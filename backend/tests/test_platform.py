@@ -1,12 +1,9 @@
 """Policy and upload contracts; no services or credentials required."""
-from io import BytesIO
 from types import SimpleNamespace
 import unittest
 from fastapi import HTTPException
-from PIL import Image
 from pydantic import ValidationError
 from app.schemas import DraftInput, MatchingWeights, PreferencesInput, SettingsInput, TournamentInput
-from app.services.avatars import sanitize_avatar
 from app.services.matching import compatible, match_score
 from app.services.platform import record
 
@@ -49,18 +46,15 @@ class PlatformPolicyTests(unittest.TestCase):
         with self.assertRaises(ValidationError): PreferencesInput(role='SUPER_ADMIN')
         with self.assertRaises(ValidationError): SettingsInput(reason='Test settings',default_radius_km=50,maximum_radius_km=5,matching_weights=dict(sport=.3,distance=.3,skill=.2,availability=.2),group_capacity=100,organizer_approval_required=True,feature_flags={'tournaments':True})
 
-    def test_avatar_is_resized_and_metadata_is_removed(self):
-        original=BytesIO()
-        exif=Image.Exif();exif[270]='private metadata'
-        Image.new('RGB',(800,600),'indigo').save(original,format='JPEG',exif=exif)
-        with Image.open(BytesIO(sanitize_avatar(original.getvalue()))) as sanitized:
-            self.assertEqual(sanitized.size,(512,512))
-            self.assertEqual(sanitized.format,'WEBP')
-            self.assertFalse(sanitized.getexif())
+    def test_clerk_identity_uses_account_fields_only(self):
+        from app.services.clerk_profile import account_identity
+        name,url=account_identity(dict(first_name=' Signup ',last_name='Player',image_url='https://img.clerk.com/avatar',unsafe_metadata={'name':'Other','role':'SUPER_ADMIN'}))
+        self.assertEqual(name,'Signup Player');self.assertEqual(url,'https://img.clerk.com/avatar')
+        self.assertIsNone(account_identity({'image_url':'javascript:alert(1)'})[1])
 
-    def test_rejects_invalid_or_oversized_uploads(self):
-        for value in [b'<svg><script/></svg>',b'',b'a'*(5*1024*1024+1)]:
-            with self.assertRaises(HTTPException): sanitize_avatar(value)
+    def test_completion_no_longer_depends_on_an_adult_checkbox(self):
+        from app.services.platform import eligible
+        self.assertTrue(eligible(SimpleNamespace(account_status='active',onboarding_completed=True,adult_confirmed=False)))
 
     def test_operational_events_reject_unregistered_or_sensitive_metadata(self):
         with self.assertRaises(ValueError): record(None,'user','arbitrary_event')

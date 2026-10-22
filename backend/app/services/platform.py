@@ -22,16 +22,16 @@ def require_roles(*roles):
 
 
 def eligible(user):
-    return user.account_status == "active" and user.onboarding_completed and user.adult_confirmed
+    return user.account_status == "active" and user.onboarding_completed
 
 
 def require_player(user):
     if not eligible(user):
-        raise HTTPException(409, "Complete your adult player profile before participating")
+        raise HTTPException(409, "Complete your player profile before participating")
 
 
 def avatar_url(user):
-    return f"/api/v1/avatars/{user.id}/{user.avatar_version}" if user.avatar_version else None
+    return user.clerk_image_url
 
 
 def person(user):

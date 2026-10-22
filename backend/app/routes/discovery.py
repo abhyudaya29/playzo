@@ -27,7 +27,7 @@ async def candidates(db, user, sport, radius_km, skill_level, recommendations, p
     query = (select(User, Sport, Location, distance_km.label("distance_km"), Connection)
         .join(Sport, Sport.user_id == User.id).join(Location, Location.user_id == User.id)
         .outerjoin(Connection, pair)
-        .where(User.id != user.id, User.account_status == "active", User.adult_confirmed.is_(True),
+        .where(User.id != user.id, User.account_status == "active",
             User.discovery_visible.is_(True), User.onboarding_completed.is_(True), Sport.sport == sport,
             User.id.not_in(select(UserBlock.blocked_id).where(UserBlock.blocker_id == user.id)),
             User.id.not_in(select(UserBlock.blocker_id).where(UserBlock.blocked_id == user.id)),
