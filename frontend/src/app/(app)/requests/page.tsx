@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import PlayerPhoto from '@/components/PlayerPhoto';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   PageHeader,
@@ -35,12 +35,14 @@ const tabs = [
   ['declined', 'Declined'],
 ] as const;
 const labels = {
+  group_invitation: 'Community invitation',
   connection: 'Player connection',
   group: 'Community membership',
   game: 'Game participation',
   invitation: 'Game invitation',
 };
 const icons = {
+  group_invitation: Users,
   connection: UserRoundPlus,
   group: Users,
   game: CalendarDays,
@@ -145,18 +147,40 @@ export default function Requests() {
           {filtered.map((item) => {
             const Icon = icons[item.kind];
             return (
-              <Card key={`${item.kind}:${item.id}`} className="shadow-none">
+              <Card
+                key={`${item.kind}:${item.id}`}
+                className="cursor-pointer shadow-none"
+                onClick={(event) => {
+                  if (
+                    !(event.target as Element).closest(
+                      'a,button,input,textarea',
+                    ) &&
+                    !window.getSelection()?.toString()
+                  )
+                    router.push(`/players/${item.person.id}`);
+                }}
+              >
                 <CardContent className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex w-full min-w-0 gap-3 lg:flex-1 lg:gap-4">
-                    <Avatar className="size-11 shrink-0 rounded-xl">
-                      <AvatarFallback className="rounded-xl bg-accent font-semibold text-primary">
-                        {item.person.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <Link
+                      href={`/players/${item.person.id}`}
+                      aria-label={`View ${item.person.name}'s profile`}
+                      className="shrink-0"
+                    >
+                      <PlayerPhoto
+                        name={item.person.name}
+                        url={item.person.avatar_url}
+                      />
+                    </Link>
                     <div className="min-w-0 flex-1 space-y-2 break-words">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-base font-semibold">
-                          {item.person.name}
+                          <Link
+                            href={`/players/${item.person.id}`}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {item.person.name}
+                          </Link>
                         </h2>
                         <Badge variant="outline" className="gap-1 text-[10px]">
                           <Icon className="size-3" />
@@ -202,6 +226,11 @@ export default function Requests() {
                     </div>
                   </div>
                   <div className="flex w-full flex-wrap gap-2 border-t pt-4 [&>button]:flex-1 lg:w-auto lg:shrink-0 lg:border-0 lg:pt-0">
+                    <Button size="sm" variant="ghost" asChild>
+                      <Link href={`/players/${item.person.id}`}>
+                        View profile
+                      </Link>
+                    </Button>
                     {item.can_respond ? (
                       <>
                         <Button

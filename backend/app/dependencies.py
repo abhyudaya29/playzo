@@ -59,7 +59,7 @@ async def current_user(
         await db.execute(select(User).where(User.clerk_id == sub))
     ).scalar_one_or_none()
     if not user:
-        await db.execute(
+        inserted = await db.execute(
             insert(User)
             .values(
                 id=str(uuid.uuid4()),
@@ -68,6 +68,22 @@ async def current_user(
             )
             .on_conflict_do_nothing(index_elements=["clerk_id"])
         )
+        from app.services.platform import record
+        # Only the winning concurrent insert emits the registration event.
+        user = (await db.execute(select(User).where(User.clerk_id == sub))).scalar_one()
+        if inserted.rowcount:
+            record(db, user.id, "user_signed_up")
         await db.commit()
         user = (await db.execute(select(User).where(User.clerk_id == sub))).scalar_one()
+    if user.account_status != "active":
+        raise HTTPException(403, "This account is suspended. Contact Playzo support.")
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    if not user.last_active_at or (now - user.last_active_at).total_seconds() >= 300:
+        from zoneinfo import ZoneInfo
+        from sqlalchemy import text
+        user.last_active_at = now
+        await db.execute(text("INSERT INTO daily_active_users(user_id,day) VALUES (:id,:day) ON CONFLICT DO NOTHING"),
+                         {"id": user.id, "day": now.astimezone(ZoneInfo("Asia/Kolkata")).date()})
+        await db.commit()
     return user

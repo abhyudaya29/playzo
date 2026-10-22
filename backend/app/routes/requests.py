@@ -7,6 +7,7 @@ from app.models import (
     Conversation,
     Game,
     GameInvitation,
+    GroupInvitation,
     Group,
     GroupMember,
     MembershipRequest,
@@ -15,6 +16,8 @@ from app.models import (
 from app.social import blocked
 from app.participation import respond_invitation, respond_membership
 from app.routes.connections import list_connections, respond
+
+from app.services.platform import person as public_person
 
 router = APIRouter(prefix="/api/v1/requests")
 
@@ -76,7 +79,7 @@ async def all_requests(user, db):
                 "kind": kind,
                 "status": entry.status,
                 "direction": "outgoing" if outgoing else "incoming",
-                "person": {"id": person.id, "name": person.name},
+                "person": public_person(person),
                 "title": resource.name if kind == "group" else resource.title,
                 "sport": resource.sport,
                 "created_at": entry.created_at,
@@ -121,7 +124,7 @@ async def all_requests(user, db):
                 "kind": "invitation",
                 "status": invitation.status,
                 "direction": "outgoing" if outgoing else "incoming",
-                "person": {"id": person.id, "name": person.name},
+                "person": public_person(person),
                 "title": game.title,
                 "sport": game.sport,
                 "created_at": invitation.created_at,
@@ -132,6 +135,17 @@ async def all_requests(user, db):
                 "starts_at": game.starts_at,
             }
         )
+    group_invites = (await db.execute(select(GroupInvitation).where(or_(GroupInvitation.sender_id == user.id,
+        GroupInvitation.receiver_id == user.id)).order_by(GroupInvitation.created_at.desc()).limit(200))).scalars()
+    for entry in group_invites:
+        group = await db.get(Group, entry.group_id)
+        outgoing = entry.sender_id == user.id
+        person = await db.get(User, entry.receiver_id if outgoing else entry.sender_id)
+        conversation_id = await db.scalar(select(Conversation.id).where(Conversation.group_id == group.id)) if entry.status == "accepted" else None
+        result.append({"id": entry.id, "kind": "group_invitation", "status": entry.status,
+            "direction": "outgoing" if outgoing else "incoming", "person": public_person(person), "title": group.name,
+            "sport": group.sport, "created_at": entry.created_at, "conversation_id": conversation_id,
+            "resource_id": group.id, "can_respond": not outgoing and entry.status == "pending"})
     visible = []
     for item in result:
         if not await blocked(db, user.id, item["person"]["id"]):
@@ -157,6 +171,9 @@ async def respond_request(
     if action not in ("accept", "decline"):
         raise HTTPException(422, "Choose accept or decline")
     decision = "accepted" if action == "accept" else "declined"
+    if kind == "group_invitation":
+        from app.routes.group_management import respond_group_invitation
+        return await respond_group_invitation(db, id, decision, user)
     if kind == "connection":
         return await respond(id, decision, user, db)
     if kind in ("group", "game"):

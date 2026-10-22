@@ -5,6 +5,7 @@ The auth override exists only in this test process; live API auth is unchanged.
 """
 
 import asyncio
+import os
 import hashlib
 import json
 import secrets
@@ -55,6 +56,8 @@ class SocialTests(unittest.IsolatedAsyncioTestCase):
                 user = User(
                     clerk_id="social-test-" + str(uuid.uuid4()),
                     name="Social Test " + name,
+                    adult_confirmed=True,
+                    onboarding_completed=True,
                 )
                 db.add(user)
                 await db.flush()
@@ -262,7 +265,7 @@ class SocialTests(unittest.IsolatedAsyncioTestCase):
             )
             return token
 
-        url = f"ws://127.0.0.1:8000/api/v1/ws/conversations/{room_id}"
+        url = os.getenv("PLAYZO_TEST_WS_BASE", "ws://127.0.0.1:8000") + f"/api/v1/ws/conversations/{room_id}"
         unauthorized = await ticket(self.ids[2])
         async with open_socket(url, origin="http://localhost:3000") as socket:
             await socket.send(

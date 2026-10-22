@@ -1,5 +1,8 @@
 'use client';
 import Link from 'next/link';
+import ReportButton from '@/components/ReportButton';
+import GameStatusControls from '@/components/GameStatusControls';
+import { Profile } from '@/lib/types';
 import { useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { CalendarDays, MapPin, Users, Plus, Check } from 'lucide-react';
@@ -35,7 +38,8 @@ import {
 } from '@/components/page-ui';
 import { OptionSelect } from '@/components/option-select';
 import { useResource } from '@/lib/use-resource';
-import { request, sports } from '@/lib/api';
+import { request } from '@/lib/api';
+import { useSports } from '@/lib/use-sports';
 type Game = {
   id: string;
   title: string;
@@ -46,13 +50,17 @@ type Game = {
   capacity: number;
   participant_count: number;
   is_joined: boolean;
+  host_id: string;
   status: string;
   approval_required: boolean;
   request_status: string | null;
   conversation_id: string | null;
 };
 export default function Games() {
+  const sportsResource = useSports();
+  const sports = sportsResource.data || [];
   const { getToken } = useAuth();
+  const me = useResource<Profile>('/api/v1/users/me');
   const { data, error, loading, reload } = useResource<Game[]>(
     '/api/v1/games',
     10000,
@@ -331,7 +339,7 @@ export default function Games() {
                     {game.participant_count} / {game.capacity} players
                   </p>
                 </CardContent>
-                <CardFooter className="justify-between gap-2 border-t">
+                <CardFooter className="flex-wrap justify-between gap-2 border-t">
                   <span className="text-xs text-muted-foreground">
                     {Math.max(0, game.capacity - game.participant_count)} spots
                     left
@@ -374,6 +382,14 @@ export default function Games() {
                       </BusyLabel>
                     </Button>
                   )}
+                  {game.host_id === me.data?.id && (
+                    <GameStatusControls
+                      id={game.id}
+                      started={new Date(game.starts_at).getTime() <= Date.now()}
+                      onSaved={() => void reload()}
+                    />
+                  )}
+                  <ReportButton type="game" id={game.id} name={game.title} />
                 </CardFooter>
               </Card>
             );

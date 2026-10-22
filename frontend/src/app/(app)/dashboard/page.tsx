@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import {
   ArrowRight,
@@ -44,7 +45,10 @@ import { Field } from '@/components/page-ui';
 import { refreshActivity } from '@/lib/social-types';
 import { OptionSelect } from '@/components/option-select';
 import { useResource } from '@/lib/use-resource';
-import { request, sports } from '@/lib/api';
+import { request } from '@/lib/api';
+import { useSports } from '@/lib/use-sports';
+import PlayerPhoto from '@/components/PlayerPhoto';
+import { trackEvent } from '@/lib/analytics';
 import { Profile, skillLevels } from '@/lib/types';
 type Player = {
   id: string;
@@ -54,11 +58,18 @@ type Player = {
   skill_level: string;
   sport: string;
   bio?: string;
+  avatar_url?: string | null;
+  match_score?: number;
+  explanation?: string[];
   connection_status?: string | null;
   connection_direction?: string | null;
 };
 export default function Dashboard() {
   const { getToken } = useAuth();
+  const router = useRouter();
+  const catalog = useSports();
+  const sports = catalog.data || [];
+  const [page, setPage] = useState(1);
   const profile = useResource<Profile>('/api/v1/users/me');
   const [sport, setSport] = useState('Badminton');
   const [radius, setRadius] = useState(5);
@@ -79,11 +90,31 @@ export default function Dashboard() {
     }
   }, [profile.data, initialized]);
   const result = useResource<Player[]>(
-    profile.data?.onboarding_completed && initialized
-      ? `/api/v1/discover/players?sport=${encodeURIComponent(sport)}&radius_km=${searchRadius}&skill_level=${level}`
+    profile.data?.onboarding_completed &&
+      profile.data?.adult_confirmed &&
+      initialized
+      ? `/api/v1/discover/players?sport=${encodeURIComponent(sport)}&radius_km=${searchRadius}&skill_level=${level}&page=${page}&page_size=24`
       : null,
     10000,
   );
+  const trackedSearch = useRef('');
+  useEffect(() => {
+    const key = `${sport}:${searchRadius}:${level}:${page}`;
+    if (!result.data || result.loading || trackedSearch.current === key) return;
+    trackedSearch.current = key;
+    trackEvent('player_search_performed', {
+      sport,
+      discovery_radius_bucket:
+        searchRadius <= 5
+          ? '5'
+          : searchRadius <= 15
+            ? '10–15'
+            : searchRadius <= 25
+              ? '25'
+              : '50',
+    });
+    if (result.data.length) trackEvent('recommendation_viewed', { sport });
+  }, [result.data, result.loading, sport, searchRadius, level, page]);
   async function connect(id: string) {
     setBusy(id);
     setError('');
@@ -187,6 +218,7 @@ export default function Dashboard() {
           </form>
         </DialogContent>
       </Dialog>
+      <ErrorNotice message={catalog.error} retry={catalog.reload} />
       <ErrorNotice message={profile.error} retry={profile.reload} />
       <Card className="overflow-hidden border-primary/15 bg-gradient-to-r from-accent/80 via-white to-white shadow-none">
         <CardContent className="flex flex-wrap items-center justify-between gap-5">
@@ -212,7 +244,9 @@ export default function Dashboard() {
       </Card>
       {profile.loading && !profile.data ? (
         <CardSkeletons />
-      ) : profile.data && !profile.data.onboarding_completed ? (
+      ) : profile.data &&
+        (!profile.data.onboarding_completed ||
+          !profile.data.adult_confirmed) ? (
         <EmptyState
           title="Your next teammate is out there"
           description="Add your location and sports to discover players near you."
@@ -245,7 +279,11 @@ export default function Dashboard() {
                     key={item}
                     size="sm"
                     variant={sport === item ? 'default' : 'outline'}
-                    onClick={() => setSport(item)}
+                    onClick={() => {
+                      setSport(item);
+                      setPage(1);
+                      trackEvent('discovery_filter_changed', { sport: item });
+                    }}
                     aria-pressed={sport === item}
                   >
                     {item}
@@ -262,17 +300,23 @@ export default function Dashboard() {
                   <Slider
                     aria-label="Search radius in kilometers"
                     min={1}
-                    max={30}
+                    max={50}
                     step={1}
                     value={[radius]}
                     onValueChange={([v]) => setRadius(v)}
-                    onValueCommit={([v]) => setSearchRadius(v)}
+                    onValueCommit={([v]) => {
+                      setSearchRadius(v);
+                      setPage(1);
+                    }}
                   />
                 </div>
                 <OptionSelect
                   label="Skill level"
                   value={level}
-                  onChange={setLevel}
+                  onChange={(v) => {
+                    setLevel(v);
+                    setPage(1);
+                  }}
                   options={[
                     { value: 'all', label: 'All skill levels' },
                     ...skillLevels,
@@ -301,18 +345,46 @@ export default function Dashboard() {
                 <Card
                   key={player.id}
                   data-player-id={player.id}
-                  className="gap-5 shadow-none transition-shadow hover:shadow-md"
+                  onClick={(event) => {
+                    if (
+                      !(event.target as Element).closest(
+                        'a,button,input,textarea',
+                      ) &&
+                      !window.getSelection()?.toString()
+                    )
+                      router.push(`/players/${player.id}`);
+                  }}
+                  className="cursor-pointer gap-5 shadow-none transition-shadow hover:shadow-md"
                 >
                   <CardHeader>
                     <div className="flex items-center gap-3">
-                      <Avatar className="size-11 rounded-xl">
-                        <AvatarFallback className="rounded-xl bg-accent font-semibold text-primary">
-                          {player.name.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Link
+                        href={`/players/${player.id}`}
+                        aria-label={`View ${player.name}'s profile`}
+                        onClick={() =>
+                          trackEvent('recommendation_clicked', {
+                            sport: player.sport,
+                          })
+                        }
+                      >
+                        <PlayerPhoto
+                          name={player.name}
+                          url={player.avatar_url}
+                        />
+                      </Link>
                       <div>
                         <CardTitle className="text-base">
-                          {player.name}
+                          <Link
+                            href={`/players/${player.id}`}
+                            className="hover:text-primary hover:underline"
+                            onClick={() =>
+                              trackEvent('recommendation_clicked', {
+                                sport: player.sport,
+                              })
+                            }
+                          >
+                            {player.name}
+                          </Link>
                         </CardTitle>
                         <CardDescription className="mt-1 text-xs">
                           {player.locality || 'Nearby player'}
@@ -321,6 +393,12 @@ export default function Dashboard() {
                     </div>
                   </CardHeader>
                   <CardContent className="flex-1 space-y-4">
+                    {player.match_score !== undefined && (
+                      <p className="text-xs font-medium text-primary">
+                        {player.match_score}% match ·{' '}
+                        {player.explanation?.join(' · ')}
+                      </p>
+                    )}
                     <p className="min-h-10 text-sm leading-6 text-muted-foreground">
                       {player.bio ||
                         `Looking for ${player.sport.toLowerCase()} partners and a good game.`}
@@ -332,40 +410,45 @@ export default function Dashboard() {
                       </Badge>
                     </div>
                   </CardContent>
-                  <CardFooter className="justify-between border-t">
+                  <CardFooter className="flex-wrap justify-between gap-3 border-t">
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="size-3" />
                       {player.distance_km.toFixed(1)} km away
                     </span>
-                    {player.connection_status === 'accepted' ? (
-                      <Button size="sm" variant="outline" asChild>
-                        <Link href={`/messages?player=${player.id}`}>
-                          <MessageSquare />
-                          Message
-                        </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/players/${player.id}`}>View profile</Link>
                       </Button>
-                    ) : player.connection_status === 'pending' &&
-                      player.connection_direction === 'incoming' ? (
-                      <Button size="sm" asChild>
-                        <Link href="/requests">Respond</Link>
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        disabled={!!busy || !!player.connection_status}
-                        onClick={() => {
-                          setTarget(player);
-                          setIntroduction('');
-                          setError('');
-                        }}
-                      >
-                        {player.connection_status === 'declined'
-                          ? 'Declined'
-                          : player.connection_status
-                            ? 'Requested'
-                            : 'Connect'}
-                      </Button>
-                    )}
+                      {player.connection_status === 'accepted' ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/messages?player=${player.id}`}>
+                            <MessageSquare />
+                            Message
+                          </Link>
+                        </Button>
+                      ) : player.connection_status === 'pending' &&
+                        player.connection_direction === 'incoming' ? (
+                        <Button size="sm" asChild>
+                          <Link href="/requests">Respond</Link>
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={!!busy || !!player.connection_status}
+                          onClick={() => {
+                            setTarget(player);
+                            setIntroduction('');
+                            setError('');
+                          }}
+                        >
+                          {player.connection_status === 'declined'
+                            ? 'Declined'
+                            : player.connection_status
+                              ? 'Requested'
+                              : 'Connect'}
+                        </Button>
+                      )}
+                    </div>
                   </CardFooter>
                 </Card>
               ))}
@@ -378,8 +461,8 @@ export default function Dashboard() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setRadius(30);
-                    setSearchRadius(30);
+                    setRadius(50);
+                    setSearchRadius(50);
                     setLevel('all');
                   }}
                 >
@@ -389,6 +472,23 @@ export default function Dashboard() {
               }
             />
           )}
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              disabled={page === 1 || result.loading}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">Page {page}</span>
+            <Button
+              variant="outline"
+              disabled={result.loading || (result.data?.length || 0) < 24}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </>
       ) : null}
     </div>

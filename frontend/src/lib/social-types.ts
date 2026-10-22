@@ -1,9 +1,9 @@
 export type SocialRequest = {
   id: string;
-  kind: 'connection' | 'group' | 'game' | 'invitation';
+  kind: 'connection' | 'group' | 'game' | 'invitation' | 'group_invitation';
   status: 'pending' | 'accepted' | 'declined';
   direction: 'incoming' | 'outgoing';
-  person: { id: string; name: string };
+  person: { id: string; name: string; avatar_url?: string | null };
   title: string;
   sport?: string;
   introduction?: string;

@@ -1,3 +1,4 @@
+from app.services.platform import record, require_player, settings
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
@@ -67,8 +68,10 @@ async def available_game(db, game_id):
 
 
 async def add_to_game(db, game, user_id):
+    require_player(await db.get(User, user_id))
     if not await db.get(GameParticipant, (game.id, user_id)):
         db.add(GameParticipant(game_id=game.id, user_id=user_id))
+        record(db, user_id, "game_joined", "game", game.id, sport=game.sport)
         await db.flush()
     ids = list(
         (
@@ -124,7 +127,7 @@ async def respond_membership(db, request_id, kind, decision, user):
     if not entry or (kind == "group") != bool(entry.group_id):
         raise HTTPException(404, "Request not found")
     resource = await db.get(
-        Group if kind == "group" else Game, entry.group_id or entry.game_id
+        Group if kind == "group" else Game, entry.group_id or entry.game_id, with_for_update=True
     )
     authorized = (
         await group_admin(db, resource.id, user.id)
@@ -141,7 +144,12 @@ async def respond_membership(db, request_id, kind, decision, user):
     if decision == "accepted":
         if kind == "group":
             if not await db.get(GroupMember, (resource.id, entry.user_id)):
+                require_player(await db.get(User, entry.user_id))
+                count = await db.scalar(select(func.count()).select_from(GroupMember).where(GroupMember.group_id == resource.id))
+                if count >= resource.capacity:
+                    raise HTTPException(409, "This group is full")
                 db.add(GroupMember(group_id=resource.id, user_id=entry.user_id))
+                record(db, entry.user_id, "group_joined", "group", resource.id, sport=resource.sport)
                 await db.flush()
             ids = list(
                 (

@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import ReportButton from '@/components/ReportButton';
 import { useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { Users, MapPin, Plus, Search, Check } from 'lucide-react';
@@ -34,7 +35,9 @@ import {
 import { OptionSelect } from '@/components/option-select';
 import { useResource } from '@/lib/use-resource';
 import { refreshActivity } from '@/lib/social-types';
-import { request, sports } from '@/lib/api';
+import { request } from '@/lib/api';
+import GroupManagement from '@/components/GroupManagement';
+import { useSports } from '@/lib/use-sports';
 type Group = {
   id: string;
   name: string;
@@ -43,10 +46,15 @@ type Group = {
   locality: string;
   member_count: number;
   is_member: boolean;
+  my_role?: string;
+  visibility?: string;
+  capacity?: number;
   request_status: string | null;
   conversation_id: string | null;
 };
 export default function Groups() {
+  const sportsResource = useSports();
+  const sports = sportsResource.data || [];
   const { getToken } = useAuth();
   const { data, error, loading, reload } = useResource<Group[]>(
     '/api/v1/groups',
@@ -211,6 +219,10 @@ export default function Groups() {
           />
         </div>
       </div>
+      <ErrorNotice
+        message={sportsResource.error}
+        retry={sportsResource.reload}
+      />
       <ErrorNotice message={actionError || error} retry={reload} />
       {loading && !data ? (
         <CardSkeletons />
@@ -253,7 +265,13 @@ export default function Groups() {
                     </span>
                   </div>
                 </CardContent>
-                <CardFooter className="border-t">
+                <CardFooter className="flex-wrap gap-2 border-t">
+                  {group.is_member && (
+                    <GroupManagement
+                      group={group}
+                      onSaved={() => void reload()}
+                    />
+                  )}
                   {group.is_member ? (
                     <Button className="w-full" variant="outline" asChild>
                       <Link
@@ -282,6 +300,7 @@ export default function Groups() {
                       </BusyLabel>
                     </Button>
                   )}
+                  <ReportButton type="group" id={group.id} name={group.name} />
                 </CardFooter>
               </Card>
             ))}

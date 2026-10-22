@@ -1,10 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timezone
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import current_user, db_session
-from app.models import Location, Sport, User
-from app.schemas import OnboardInput
+from app.models import Location, Sport, User, UserAvatar
+from app.services.avatars import MAX_UPLOAD, sanitize_avatar
+from app.services.platform import avatar_url, person, record, require_player, settings, validate_sports
+from app.social import blocked
+from app.schemas import AnalyticsConsentInput, OnboardInput, PreferencesInput, ProfilePatch, SportInput
 
 router = APIRouter(prefix="/api/v1/users")
 
@@ -18,6 +25,18 @@ async def me(
     loc = await db.get(Location, user.id)
     return {
         "id": user.id,
+        "avatar_url": avatar_url(user),
+        "bio": user.bio,
+        "adult_confirmed": user.adult_confirmed,
+        "gender_self_description": user.gender_self_description,
+        "gender_visibility": user.gender_visibility,
+        "discovery_visible": user.discovery_visible,
+        "participation_interests": user.participation_interests,
+        "teammate_preference": user.teammate_preference,
+        "availability": user.availability,
+        "role": user.role,
+        "onboarding_step": user.onboarding_step,
+        "onboarding_draft": user.onboarding_draft,
         "name": user.name,
         "phone": user.phone,
         "nickname": user.nickname,
@@ -28,7 +47,7 @@ async def me(
         "languages": user.languages,
         "onboarding_completed": user.onboarding_completed,
         "search_radius_km": user.search_radius_km,
-        "sports": [{"sport": x.sport, "skill_level": x.skill_level} for x in prefs],
+        "sports": [{"sport": x.sport, "skill_level": x.skill_level, "play_intention": x.play_intention} for x in prefs],
         "location": {
             "pincode": loc.pincode,
             "locality": loc.locality,
@@ -47,6 +66,28 @@ async def onboarding(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(db_session),
 ) -> dict:
+    if data.age is not None and data.age < 18:
+        raise HTTPException(422, "Playzo is currently for players aged 18 and older")
+    if not data.adult_confirmed and not (data.age is not None and data.age >= 18):
+        raise HTTPException(422, "Confirm that you are at least 18 to continue")
+    await validate_sports(db, [x.sport for x in data.sports])
+    config = await settings(db)
+    if data.search_radius_km > config["maximum_radius_km"]:
+        raise HTTPException(422, "Discovery radius exceeds the platform limit")
+    completed_before = user.onboarding_completed
+    user.adult_confirmed = True
+    user.bio = data.bio
+    user.gender_self_description = data.gender_self_description if data.gender == "other" else None
+    user.gender_visibility = data.gender_visibility
+    user.discovery_visible = data.discovery_visible
+    user.participation_interests = list(dict.fromkeys(data.participation_interests))
+    user.teammate_preference = data.teammate_preference
+    user.availability = [x.model_dump() for x in data.availability]
+    user.onboarding_step = 6
+    user.onboarding_draft = {}
+    user.updated_at = datetime.now(timezone.utc)
+    if not user.onboarding_completed_at:
+        user.onboarding_completed_at = datetime.now(timezone.utc)
     if len({x.sport for x in data.sports}) != len(data.sports):
         raise HTTPException(422, "Duplicate sports")
 
@@ -111,7 +152,130 @@ async def onboarding(
     await db.flush()
 
     for sport in data.sports:
-        db.add(Sport(user_id=user.id, sport=sport.sport, skill_level=sport.skill_level))
+        db.add(Sport(user_id=user.id, sport=sport.sport, skill_level=sport.skill_level, play_intention=sport.play_intention))
 
+    record(db, user.id, "profile_updated" if completed_before else "onboarding_completed")
     await db.commit()
     return {"success": True, "location_approximate": data.latitude is None or data.longitude is None}
+
+
+@router.patch("/me")
+async def patch_profile(data: ProfilePatch, user=Depends(current_user), db=Depends(db_session)):
+    user.name = data.name
+    user.bio = data.bio
+    user.updated_at = datetime.now(timezone.utc)
+    record(db, user.id, "profile_updated")
+    await db.commit()
+    return {"success": True}
+
+
+@router.put("/me/avatar")
+async def upload_avatar(request: Request, user=Depends(current_user), db=Depends(db_session)):
+    content = bytearray()
+    async for chunk in request.stream():
+        content.extend(chunk)
+        if len(content) > MAX_UPLOAD:
+            raise HTTPException(413, "Choose an image under 5 MB")
+    sanitized = await run_in_threadpool(sanitize_avatar, bytes(content))
+    # Lock the user so concurrent changes cannot leave version and content apart.
+    await db.refresh(user, with_for_update=True)
+    avatar = await db.get(UserAvatar, user.id)
+    if avatar:
+        avatar.content = sanitized
+    else:
+        db.add(UserAvatar(user_id=user.id, content=sanitized))
+    user.avatar_version = str(uuid.uuid4())
+    record(db, user.id, "profile_updated")
+    await db.commit()
+    return {"avatar_url": avatar_url(user)}
+
+
+@router.delete("/me/avatar")
+async def delete_avatar(user=Depends(current_user), db=Depends(db_session)):
+    await db.refresh(user, with_for_update=True)
+    avatar = await db.get(UserAvatar, user.id)
+    if avatar:
+        await db.delete(avatar)
+    user.avatar_version = None
+    record(db, user.id, "profile_updated")
+    await db.commit()
+    return {"avatar_url": None}
+
+
+@router.get("/me/preferences")
+async def get_preferences(user=Depends(current_user)):
+    return {key: getattr(user, key) for key in PreferencesInput.model_fields}
+
+
+@router.patch("/me/preferences")
+async def update_preferences(data: PreferencesInput, user=Depends(current_user), db=Depends(db_session)):
+    if "search_radius_km" in data.model_fields_set and data.search_radius_km > (await settings(db))["maximum_radius_km"]:
+        raise HTTPException(422, "Discovery radius exceeds the platform limit")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(user, key, value)
+    record(db, user.id, "preferences_updated")
+    await db.commit()
+    return await get_preferences(user)
+
+
+@router.patch("/me/analytics-consent")
+async def analytics_consent(data: AnalyticsConsentInput,
+                            user=Depends(current_user), db=Depends(db_session)):
+    if user.product_analytics_consent != data.allowed:
+        user.product_analytics_consent = data.allowed
+        user.analytics_consent_updated_at = datetime.now(timezone.utc)
+        await db.commit()
+    return {"allowed": user.product_analytics_consent}
+
+
+@router.get("/me/sports")
+async def get_my_sports(user=Depends(current_user), db=Depends(db_session)):
+    rows = (await db.execute(select(Sport).where(Sport.user_id == user.id))).scalars()
+    return [{"sport": s.sport, "skill_level": s.skill_level, "play_intention": s.play_intention} for s in rows]
+
+
+@router.put("/me/sports")
+async def set_my_sports(data: list[SportInput],
+                        user=Depends(current_user), db=Depends(db_session)):
+    if not 1 <= len(data) <= 50 or len({s.sport for s in data}) != len(data):
+        raise HTTPException(422, "Choose 1–50 unique sports")
+    await validate_sports(db, [s.sport for s in data])
+    from sqlalchemy import delete
+    await db.execute(delete(Sport).where(Sport.user_id == user.id))
+    for entry in data:
+        db.add(Sport(user_id=user.id, **entry.model_dump()))
+    record(db, user.id, "profile_updated")
+    await db.commit()
+    return await get_my_sports(user, db)
+
+
+@router.get("/{user_id}")
+async def public_profile(user_id: str, user=Depends(current_user), db=Depends(db_session)):
+    if user_id != user.id:
+        require_player(user)
+    other = await db.get(User, user_id)
+    if (not other or other.account_status != "active" or not other.onboarding_completed
+            or (user_id != user.id and other.age is not None and other.age < 18)
+            or (user.id != user_id and await blocked(db, user.id, user_id))):
+        raise HTTPException(404, "Player not found")
+    # Hidden profiles remain visible to accepted connections only.
+    from app.models import Connection
+    from sqlalchemy import or_, and_
+    connection = await db.scalar(select(Connection).where(or_(
+        and_(Connection.requester_id == user.id, Connection.receiver_id == user_id),
+        and_(Connection.receiver_id == user.id, Connection.requester_id == user_id))))
+    if user.id != user_id and (not other.discovery_visible or not other.adult_confirmed):
+        if not connection or connection.status != "accepted":
+            raise HTTPException(404, "Player not found")
+    sports = (await db.execute(select(Sport).where(Sport.user_id == user_id))).scalars().all()
+    loc = await db.get(Location, user_id)
+    return {
+        **person(other), "bio": other.bio, "nickname": other.nickname,
+        "city": loc.city if loc else None, "locality": loc.locality if loc else None,
+        "sports": [{"sport": row.sport, "skill_level": row.skill_level, "play_intention": row.play_intention} for row in sports],
+        "availability": other.availability, "participation_interests": other.participation_interests,
+        "gender": other.gender if other.gender_visibility == "public" else None,
+        "gender_self_description": other.gender_self_description if other.gender_visibility == "public" else None,
+        "connection_status": connection.status if connection else None,
+        "connection_direction": ("outgoing" if connection.requester_id == user.id else "incoming") if connection else None,
+    }

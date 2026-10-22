@@ -1,3 +1,4 @@
+from app.services.platform import record
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -193,6 +194,7 @@ async def block(
     )
     if not await db.get(UserBlock, (user.id, data.blocked_id)):
         db.add(UserBlock(blocker_id=user.id, blocked_id=data.blocked_id))
+        record(db, user.id, "user_blocked", "user", data.blocked_id)
     await db.commit()
     for conversation in rows:
         await emit(

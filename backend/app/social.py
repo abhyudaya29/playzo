@@ -54,6 +54,10 @@ async def blocked(db: AsyncSession, first: str, second: str) -> bool:
 
 
 async def allowed_pair(db: AsyncSession, first: str, second: str) -> None:
+    for user_id in {first, second}:
+        player = await db.get(User, user_id)
+        if not player or player.account_status != "active":
+            raise HTTPException(403, "This player is unavailable")
     if await blocked(db, first, second):
         raise HTTPException(
             403, "This interaction is unavailable because a player is blocked"
@@ -114,6 +118,9 @@ async def active_member_ids(db, conversation):
 
 
 async def access(db: AsyncSession, conversation_id: str, user_id: str, *, lock=False):
+    player = await db.get(User, user_id)
+    if not player or player.account_status != "active":
+        raise HTTPException(404, "Conversation not found")
     query = (
         select(Conversation)
         .join(ConversationMember)
@@ -154,6 +161,10 @@ async def access(db: AsyncSession, conversation_id: str, user_id: str, *, lock=F
         raise HTTPException(404, "Conversation not found")
     if conversation.kind == "direct":
         first, second = conversation.direct_key.split(":")
+        for actor_id in (first, second):
+            actor = await db.get(User, actor_id)
+            if not actor or actor.account_status != "active":
+                raise HTTPException(404, "Conversation not found")
         accepted = await db.scalar(
             select(Connection.id)
             .where(

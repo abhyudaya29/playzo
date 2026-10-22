@@ -1,3 +1,4 @@
+from app.services.platform import record
 import asyncio
 import hashlib
 import json
@@ -161,6 +162,7 @@ async def send_message(
             conversation_id=id,
             message_id=message.id,
         )
+    record(db, user.id, "message_sent", "conversation", id)
     await db.commit()
     await emit(
         id, {"type": "message.created", "conversation_id": id, "message_id": message.id}

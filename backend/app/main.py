@@ -45,3 +45,13 @@ app.include_router(games_router)
 app.include_router(conversations_router)
 app.include_router(requests_router)
 app.include_router(activity_router)
+
+from app.routes import admin, catalog, onboarding, reports, tournaments
+app.include_router(admin.router)
+app.include_router(catalog.router)
+app.include_router(onboarding.router)
+app.include_router(reports.router)
+app.include_router(tournaments.router)
+
+from app.routes.group_management import router as group_management_router
+app.include_router(group_management_router)

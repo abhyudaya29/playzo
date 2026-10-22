@@ -15,7 +15,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Field, ErrorNotice, BusyLabel } from '@/components/page-ui';
 import { OptionSelect } from '@/components/option-select';
-import { request, sports } from '@/lib/api';
+import { request } from '@/lib/api';
+import { useSports } from '@/lib/use-sports';
 import { refreshActivity } from '@/lib/social-types';
 export default function ScheduleGameDialog({
   conversationId,
@@ -26,6 +27,8 @@ export default function ScheduleGameDialog({
   peerName: string;
   onScheduled: () => void;
 }) {
+  const sportsResource = useSports();
+  const sports = sportsResource.data || [];
   const { getToken } = useAuth();
   const [open, setOpen] = useState(false),
     [title, setTitle] = useState(''),

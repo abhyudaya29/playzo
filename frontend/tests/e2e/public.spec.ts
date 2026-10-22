@@ -56,3 +56,34 @@ test('public pages and failed-link recovery work on desktop and mobile', async (
   }
   expect(errors).toEqual([]);
 });
+
+test('privacy controls render without horizontal overflow on mobile', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/privacy');
+  await expect(
+    page.getByRole('heading', { name: 'Your privacy at Playzo' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /optional analytics/ }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+  ).toBe(false);
+});
+
+test('new player, tournament and admin pages require authentication', async ({
+  page,
+}) => {
+  for (const route of [
+    '/admin',
+    '/tournaments',
+    '/players/00000000-0000-0000-0000-000000000001',
+  ]) {
+    await page.goto(route);
+    await expect(page).toHaveURL(/sign-in/);
+  }
+});

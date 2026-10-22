@@ -5,6 +5,7 @@ from typing import Optional
 from geoalchemy2 import Geography
 from sqlalchemy import (
     BigInteger,
+    LargeBinary,
     JSON,
     DateTime,
     func,
@@ -39,6 +40,24 @@ class User(Base):
     motivation: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     languages: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    avatar_version: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    product_analytics_consent: Mapped[bool] = mapped_column(default=False, server_default="false")
+    analytics_consent_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    adult_confirmed: Mapped[bool] = mapped_column(default=False, server_default="false")
+    gender_self_description: Mapped[Optional[str]] = mapped_column(String(100))
+    gender_visibility: Mapped[str] = mapped_column(String(12), default="private", server_default="private")
+    discovery_visible: Mapped[bool] = mapped_column(default=True, server_default="true")
+    account_status: Mapped[str] = mapped_column(String(20), default="active", server_default="active")
+    role: Mapped[str] = mapped_column(String(24), default="USER", server_default="USER")
+    participation_interests: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    teammate_preference: Mapped[str] = mapped_column(String(20), default="no_preference", server_default="no_preference")
+    availability: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    onboarding_draft: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    onboarding_step: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    onboarding_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_active_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     onboarding_completed: Mapped[bool] = mapped_column(default=False)
     search_radius_km: Mapped[int] = mapped_column(Integer, default=5)
 
@@ -65,6 +84,7 @@ class Sport(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
     sport: Mapped[str] = mapped_column(String(60), primary_key=True)
     skill_level: Mapped[str] = mapped_column(String(20))
+    play_intention: Mapped[str] = mapped_column(String(16), default="both", server_default="both")
 
 
 class Connection(Base):
@@ -93,6 +113,8 @@ class Group(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    visibility: Mapped[str] = mapped_column(String(12), default="public", server_default="public")
+    capacity: Mapped[int] = mapped_column(Integer, default=100, server_default="100")
     name: Mapped[str] = mapped_column(String(100))
     description: Mapped[str] = mapped_column(Text, default="")
     sport: Mapped[str] = mapped_column(String(60))
@@ -264,3 +286,101 @@ class GameInvitation(Base):
     )
 
     __table_args__ = (UniqueConstraint("game_id", "receiver_id"),)
+
+
+class UserAvatar(Base):
+    __tablename__ = "user_avatars"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class SportCatalog(Base):
+    __tablename__ = "sports_catalog"
+    name: Mapped[str] = mapped_column(String(60), primary_key=True)
+    active: Mapped[bool] = mapped_column(default=True, server_default="true")
+
+
+class PlatformSettings(Base):
+    __tablename__ = "platform_settings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON)
+
+
+class OrganizerProfile(Base):
+    __tablename__ = "organizer_profiles"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    organization: Mapped[str] = mapped_column(String(150))
+    experience: Mapped[str] = mapped_column(String(2000))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reviewed_by: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class Tournament(Base):
+    __tablename__ = "tournaments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    host_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = mapped_column(String(120))
+    sport: Mapped[str] = mapped_column(ForeignKey("sports_catalog.name"))
+    city: Mapped[str] = mapped_column(String(160))
+    venue: Mapped[str] = mapped_column(String(180))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    capacity: Mapped[int] = mapped_column(Integer)
+    rules: Mapped[str] = mapped_column(String(5000), default="")
+    status: Mapped[str] = mapped_column(String(24), default="draft")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TournamentRegistration(Base):
+    __tablename__ = "tournament_registrations"
+    tournament_id: Mapped[str] = mapped_column(ForeignKey("tournaments.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ModerationReport(Base):
+    __tablename__ = "moderation_reports"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    reporter_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    target_type: Mapped[str] = mapped_column(String(16))
+    target_id: Mapped[str] = mapped_column(String(36))
+    reason: Mapped[str] = mapped_column(String(2000))
+    status: Mapped[str] = mapped_column(String(16), default="open")
+    internal_notes: Mapped[str] = mapped_column(String(4000), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ActivityEvent(Base):
+    __tablename__ = "activity_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    event_name: Mapped[str] = mapped_column(String(60))
+    entity_type: Mapped[Optional[str]] = mapped_column(String(20))
+    entity_id: Mapped[Optional[str]] = mapped_column(String(36))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AdminAuditLog(Base):
+    __tablename__ = "admin_audit_logs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    admin_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(60))
+    target_type: Mapped[str] = mapped_column(String(20))
+    target_id: Mapped[str] = mapped_column(String(60))
+    reason: Mapped[str] = mapped_column(String(1000))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class GroupInvitation(Base):
+    __tablename__ = "group_invitations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id: Mapped[str] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
+    sender_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    receiver_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint("group_id", "receiver_id"),)

@@ -1,7 +1,28 @@
-export type SportPreference = { sport: string; skill_level: string };
+export type SportPreference = {
+  sport: string;
+  skill_level: string;
+  play_intention?: string;
+};
 export type Profile = {
   id: string;
   name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  adult_confirmed: boolean;
+  gender_self_description: string | null;
+  gender_visibility: 'private' | 'public';
+  discovery_visible: boolean;
+  role:
+    | 'USER'
+    | 'SUPER_ADMIN'
+    | 'OPERATIONS_ADMIN'
+    | 'TOURNAMENT_MODERATOR'
+    | 'SUPPORT_AGENT';
+  participation_interests: string[];
+  teammate_preference: string;
+  availability: Availability[];
+  onboarding_step: number;
+  onboarding_draft: Record<string, unknown>;
   phone: string | null;
   nickname: string | null;
   age: number | null;
@@ -27,5 +48,7 @@ export const skillLevels = [
   { value: 'beginner', label: 'Beginner' },
   { value: 'intermediate', label: 'Intermediate' },
   { value: 'advanced', label: 'Advanced' },
-  { value: 'pro', label: 'Pro' },
+  { value: 'pro', label: 'Competitive' },
 ];
+
+export type Availability = { weekday: number; time_slot: string };

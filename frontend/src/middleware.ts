@@ -6,6 +6,9 @@ const protectedRoute = createRouteMatcher([
   '/requests(.*)',
   '/messages(.*)',
   '/games(.*)',
+  '/players(.*)',
+  '/tournaments(.*)',
+  '/admin(.*)',
 ]);
 export default clerkMiddleware(async (auth, req) => {
   if (protectedRoute(req)) await auth.protect();

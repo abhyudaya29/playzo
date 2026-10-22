@@ -1,0 +1,38 @@
+# Optional overlay: use with docker-compose.release.yml and the release env file.
+# No PostHog service is self-hosted. Worker and beat perform DB maintenance and
+# deliver consented events to the configured PostHog Cloud project.
+x-worker-environment: &worker-environment
+  DATABASE_URL: ${DATABASE_URL:?Set the release DATABASE_URL}
+  VALKEY_URL: redis://valkey:6379/0
+  POSTHOG_PROJECT_KEY: ${POSTHOG_PROJECT_KEY:-}
+  POSTHOG_HOST: ${POSTHOG_HOST:-}
+
+services:
+  api:
+    environment:
+      POSTHOG_DASHBOARD_URL: ${POSTHOG_DASHBOARD_URL:-}
+  frontend:
+    build:
+      args:
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-}
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["celery", "-A", "app.worker.celery", "worker", "--loglevel=warning", "--pool=solo"]
+    environment: *worker-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+  beat:
+    build: ./backend
+    restart: unless-stopped
+    command: ["celery", "-A", "app.worker.celery", "beat", "--loglevel=warning", "--schedule=/tmp/playzo-celerybeat"]
+    environment: *worker-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy

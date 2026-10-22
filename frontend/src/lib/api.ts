@@ -51,15 +51,3 @@ export async function request<T>(
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
-export const sports = [
-  'Badminton',
-  'Cricket',
-  'Football',
-  'Basketball',
-  'Tennis',
-  'Pickleball',
-  'Table Tennis',
-  'Volleyball',
-  'Running',
-  'Cycling',
-];

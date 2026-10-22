@@ -7,6 +7,9 @@ from app.models import Connection, Conversation, User
 from app.schemas import ConnectionInput
 from app.social import blocked, allowed_pair, notify, pair_key, pair_lock, room
 
+from app.services.platform import person, rate_limit, record, require_player
+from app.services.matching import compatible
+
 router = APIRouter(prefix="/api/v1/connections")
 
 
@@ -16,10 +19,16 @@ async def connect(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(db_session),
 ):
+    require_player(user)
     if data.receiver_id == user.id:
         raise HTTPException(400, "Cannot connect to yourself")
-    if not await db.get(User, data.receiver_id):
+    other = await db.get(User, data.receiver_id)
+    if not other or other.account_status != "active" or not other.discovery_visible:
         raise HTTPException(404, "Player not found")
+    require_player(other)
+    if not compatible(user, other):
+        raise HTTPException(403, "This player is unavailable for connections")
+    await rate_limit(db, user.id, "connection_requested")
     await pair_lock(db, user.id, data.receiver_id)
     await allowed_pair(db, user.id, data.receiver_id)
     existing = await db.scalar(
@@ -60,6 +69,7 @@ async def connect(
         actor=user,
         request_id=connection.id,
     )
+    record(db, user.id, "connection_requested", "user", data.receiver_id)
     await db.commit()
     return {"id": connection.id, "status": connection.status}
 
@@ -107,7 +117,7 @@ async def list_connections(user, db):
                 "direction": (
                     "outgoing" if connection.requester_id == user.id else "incoming"
                 ),
-                "person": {"id": other.id, "name": other.name},
+                "person": person(other),
                 "title": "Player connection",
                 "introduction": connection.introduction,
                 "sport": connection.sport,
@@ -161,6 +171,8 @@ async def respond(id, decision, user, db):
             actor=user,
             request_id=connection.id,
         )
+    if changed:
+        record(db, user.id, "connection_accepted" if decision == "accepted" else "connection_declined", "user", connection.requester_id)
     await db.commit()
     return {
         "status": decision,

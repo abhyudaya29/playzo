@@ -11,6 +11,8 @@ import {
   Settings2,
   ArrowUpRight,
   ChevronRight,
+  Trophy,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -22,20 +24,20 @@ import { useResource } from '@/lib/use-resource';
 import { Activity } from '@/lib/social-types';
 import { Profile } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import PlayerPhoto from '@/components/PlayerPhoto';
 const navigation = [
   { href: '/dashboard', label: 'Discover', icon: Compass },
   { href: '/requests', label: 'Requests', icon: Inbox },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/groups', label: 'Communities', icon: Users },
   { href: '/games', label: 'Games', icon: CalendarDays },
+  { href: '/tournaments', label: 'Tournaments', icon: Trophy },
   { href: '/onboarding', label: 'Your profile', icon: Settings2 },
 ];
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const activity = useResource<Activity>('/api/v1/activity', 10000);
-  const profile = useResource<Profile>(
-    pathname === '/onboarding' ? '/api/v1/users/me' : null,
-  );
+  const profile = useResource<Profile>('/api/v1/users/me');
   const settingUp =
     pathname === '/onboarding' && profile.data?.onboarding_completed === false;
   const countFor = (href: string) =>
@@ -88,6 +90,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               </Link>
             </Button>
           ))}
+          {profile.data && profile.data.role !== 'USER' && (
+            <Button
+              asChild
+              variant="ghost"
+              className="justify-start gap-3 text-muted-foreground"
+            >
+              <Link href="/admin">
+                <ShieldCheck className="size-4" />
+                Admin control center
+              </Link>
+            </Button>
+          )}
         </nav>
         <div className="mt-auto rounded-xl border bg-muted/40 p-4">
           <div className="mb-2 inline-flex rounded-lg border bg-white p-2">
@@ -128,8 +142,24 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <span className="hidden text-xs text-muted-foreground sm:block">
               Let’s make time to play
             </span>
+            {profile.data && profile.data.role !== 'USER' && (
+              <Button asChild variant="ghost" size="sm" className="md:hidden">
+                <Link href="/admin" aria-label="Admin control center">
+                  <ShieldCheck className="size-4" />
+                </Link>
+              </Button>
+            )}
             <InstallApp />
             <Notifications count={activity.data?.notifications || 0} />
+            {profile.data && (
+              <Link href="/onboarding" aria-label="Edit your player profile">
+                <PlayerPhoto
+                  name={profile.data.name}
+                  url={profile.data.avatar_url}
+                  className="size-8"
+                />
+              </Link>
+            )}
             <UserButton afterSignOutUrl="/" />
           </div>
         </header>
@@ -142,7 +172,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <nav
           aria-label="Mobile navigation"
           className={cn(
-            'fixed inset-x-0 bottom-0 z-30 grid-cols-6 border-t bg-white pb-[env(safe-area-inset-bottom)] md:hidden',
+            'fixed inset-x-0 bottom-0 z-30 grid-cols-7 border-t bg-white pb-[env(safe-area-inset-bottom)] md:hidden',
             settingUp ? 'hidden' : 'grid',
           )}
         >
@@ -153,9 +183,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               aria-label={
                 item.href === '/groups'
                   ? 'Groups'
-                  : item.href === '/onboarding'
-                    ? 'Profile'
-                    : item.label
+                  : item.href === '/tournaments'
+                    ? 'Events'
+                    : item.href === '/onboarding'
+                      ? 'Profile'
+                      : item.label
               }
               aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
               className={cn(
@@ -167,9 +199,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <span className="relative">
                 {item.href === '/groups'
                   ? 'Groups'
-                  : item.href === '/onboarding'
-                    ? 'Profile'
-                    : item.label}
+                  : item.href === '/tournaments'
+                    ? 'Events'
+                    : item.href === '/onboarding'
+                      ? 'Profile'
+                      : item.label}
                 {countFor(item.href) > 0 && (
                   <span className="ml-0.5 text-[9px] font-bold">
                     ({countFor(item.href)})
