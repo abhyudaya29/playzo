@@ -31,7 +31,7 @@ class ProfileApiTests(unittest.IsolatedAsyncioTestCase):
                     subjects.append(user.clerk_id)
                 await db.commit()
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
-                payload = dict(name='Profile Player', nickname='Ace', age=28, gender='woman', motivation='comeback', languages=[' Hindi ', 'English'], phone='9876543210', pincode='201014', locality='Indirapuram', city='Ghaziabad', latitude=28.6415, longitude=77.3737, sports=[dict(sport='Badminton', skill_level='intermediate')])
+                payload = dict(name='Profile Player', nickname='Ace', age=28, gender='woman', motivation='comeback', looking_for='find_group', languages=[' Hindi ', 'English'], phone='9876543210', pincode='201014', locality='Indirapuram', city='Ghaziabad', latitude=28.6415, longitude=77.3737, sports=[dict(sport='Badminton', skill_level='intermediate')])
                 headers = {'x-test-user': subjects[0]}
                 response = await client.put('/api/v1/users/me/onboarding', headers=headers, json=payload)
                 self.assertEqual(response.status_code, 200, response.text)
@@ -40,6 +40,7 @@ class ProfileApiTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(me['age'], 28)
                 self.assertEqual(me['gender'], 'woman')
                 self.assertEqual(me['motivation'], 'comeback')
+                self.assertEqual(me['looking_for'], 'find_group')
                 self.assertEqual(me['languages'], ['Hindi', 'English'])
                 self.assertEqual(me['phone'], '+919876543210')
                 for level in ['hobby', 'beginner', 'intermediate', 'advanced', 'pro']:

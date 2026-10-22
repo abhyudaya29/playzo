@@ -98,8 +98,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </p>
       </aside>
       <div className="md:pl-60">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-white/95 px-5 backdrop-blur-sm md:px-9">
-          <div className="md:hidden">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b bg-white/95 px-5 backdrop-blur-sm md:px-9">
+          <div className="min-w-0 md:hidden">
             <Brand />
           </div>
           <div className="hidden items-center gap-3 text-sm text-muted-foreground md:flex">
@@ -108,7 +108,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               {current?.label}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <span className="hidden text-xs text-muted-foreground sm:block">
               Let’s make time to play
             </span>
@@ -119,7 +119,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </header>
         <main
           id="main-content"
-          className="mx-auto max-w-7xl px-5 py-7 pb-28 md:px-9 md:py-10"
+          className="mx-auto min-w-0 max-w-7xl px-4 py-7 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-5 md:px-9 md:py-10"
         >
           {children}
         </main>

@@ -24,8 +24,15 @@ class PlayerProfileTests(unittest.TestCase):
         self.assertEqual(profile.languages, ['Hindi', 'English'])
         self.assertEqual(profile.motivation, 'comeback')
 
+    def test_play_intent_and_other_gender(self):
+        for intent in ['join_individually', 'find_group', 'host_games']:
+            profile = self.profile(looking_for=intent, gender='other')
+            self.assertEqual(profile.looking_for, intent)
+            self.assertEqual(profile.gender, 'other')
+        self.assertIsNone(self.profile().looking_for)
+
     def test_invalid_preferences_rejected(self):
-        for change in [dict(age=0), dict(age=121), dict(gender='anything'), dict(motivation='anything'), dict(languages=[' ']), dict(languages=['a' * 41]), dict(languages=['English'] * 11), dict(name=' ')]:
+        for change in [dict(age=0), dict(age=121), dict(gender='anything'), dict(looking_for='anything'), dict(motivation='anything'), dict(languages=[' ']), dict(languages=['a' * 41]), dict(languages=['English'] * 11), dict(name=' ')]:
             with self.subTest(change=change), self.assertRaises(ValidationError):
                 self.profile(**change)
 

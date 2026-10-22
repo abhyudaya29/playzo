@@ -94,23 +94,19 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
     ).toBeVisible();
     failProfile = false;
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
+    await page.getByRole('radio', { name: 'Male', exact: true }).check();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('radio', { name: /Join individually/ }).check();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await expect(page.getByLabel('Full name')).toHaveValue('Playzo Test');
     await page.getByLabel('Phone number (optional)').fill('98765 43210');
+    await page.getByLabel('Nickname (optional)').fill('Court Captain');
+    await page.getByLabel('Age (optional)', { exact: true }).fill('28');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.getByLabel('PIN code').fill('201014');
     await page.getByLabel('Locality', { exact: true }).fill('Indirapuram');
     await page.getByLabel('City', { exact: true }).fill('Ghaziabad');
     await page.getByLabel('State', { exact: true }).fill('Uttar Pradesh');
-    await page
-      .getByRole('checkbox', { name: 'Badminton', exact: true })
-      .check();
-    await page.getByLabel('Nickname (optional)').fill('Court Captain');
-    await page.getByLabel('Age (optional)', { exact: true }).fill('28');
-    await page
-      .getByRole('button', { name: 'Making a comeback', exact: true })
-      .click();
-    await page.getByLabel('Languages you speak (optional)').fill('Hindi');
-    await page.getByRole('button', { name: 'Add', exact: true }).click();
-    await page.getByRole('radio', { name: 'Pro', exact: true }).check();
     await context.grantPermissions(['geolocation']);
     await context.setGeolocation({ latitude: 28.6415, longitude: 77.3737 });
     await page
@@ -119,6 +115,17 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
     await expect(
       page.getByText('Location captured.', { exact: false }),
     ).toBeVisible();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page
+      .getByRole('checkbox', { name: 'Badminton', exact: true })
+      .check();
+    await page.getByRole('radio', { name: 'Pro', exact: true }).check();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Making a comeback', exact: true })
+      .click();
+    await page.getByLabel('Languages you speak (optional)').fill('Hindi');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
     const discover = page.waitForResponse(
       (response) =>
         response.url().includes('/api/v1/discover/players?') &&
@@ -129,9 +136,7 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
         response.url().endsWith('/api/v1/users/me/onboarding') &&
         response.request().method() === 'PUT',
     );
-    await page
-      .getByRole('button', { name: 'Explore nearby players', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'Let’s play', exact: true }).click();
     expect((await save).status()).toBe(200);
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(

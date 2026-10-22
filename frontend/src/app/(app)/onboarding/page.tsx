@@ -37,6 +37,7 @@ const initial = {
   nickname: '',
   age: '',
   gender: '',
+  looking_for: '',
   motivation: '',
   pincode: '',
   city: '',
@@ -62,6 +63,25 @@ export default function Onboarding() {
     [busy, setBusy] = useState(false),
     [locating, setLocating] = useState(false),
     [ready, setReady] = useState(false);
+  const [step, setStep] = useState(0);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const editing = !!profile.data?.onboarding_completed;
+  const steps = [
+    'How do you identify?',
+    'What are you looking for?',
+    'What should we call you?',
+    'Where do you play?',
+    'What do you love playing?',
+    'A little more about you',
+  ];
+  function goToStep(next: number) {
+    setError('');
+    setStep(next);
+    requestAnimationFrame(() => {
+      heading.current?.focus();
+      heading.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    });
+  }
   const loaded = useRef(false);
   const geoRevision = useRef(0);
   function update<K extends keyof typeof initial>(
@@ -85,6 +105,7 @@ export default function Onboarding() {
       age: p.age?.toString() || '',
       gender: p.gender || '',
       motivation: p.motivation || '',
+      looking_for: p.looking_for || '',
       street_address: p.location?.street_address || '',
       search_radius_km: p.search_radius_km,
     });
@@ -172,6 +193,39 @@ export default function Onboarding() {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
+    if (!editing && step < steps.length - 1) {
+      if (step === 1 && !form.looking_for) {
+        setError('Choose how you would like to play.');
+        return;
+      }
+      if (step === 2) {
+        try {
+          normalizePhone(form.phone);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'Check your phone number.');
+          return;
+        }
+      }
+      if (
+        step === 3 &&
+        (!/^\d{6}$/.test(form.pincode) ||
+          !form.locality.trim() ||
+          !form.city.trim())
+      ) {
+        setError('Add a six-digit PIN code, city, and locality.');
+        return;
+      }
+      if (step === 2 && !nameValid()) {
+        setError('Add your name to continue.');
+        return;
+      }
+      if (step === 4 && !Object.keys(selected).length) {
+        setError('Choose at least one sport to continue.');
+        return;
+      }
+      goToStep(step + 1);
+      return;
+    }
     if (
       !nameValid() ||
       !form.locality.trim() ||
@@ -193,6 +247,7 @@ export default function Onboarding() {
           nickname: form.nickname.trim() || null,
           age: form.age ? Number(form.age) : null,
           gender: form.gender || null,
+          looking_for: form.looking_for || null,
           motivation: form.motivation || null,
           languages,
           phone: normalizePhone(form.phone),
@@ -204,7 +259,13 @@ export default function Onboarding() {
         }),
       });
       await profile.reload();
-      router.push('/dashboard');
+      router.push(
+        editing || form.looking_for === 'join_individually'
+          ? '/dashboard'
+          : form.looking_for === 'find_group'
+            ? '/groups'
+            : '/games',
+      );
     } catch (e) {
       setError(
         e instanceof Error
@@ -229,7 +290,7 @@ export default function Onboarding() {
     return !!form.name.trim();
   }
   return (
-    <div className="page-enter">
+    <div className="page-enter mx-auto max-w-4xl">
       <PageHeader
         eyebrow={
           profile.data?.onboarding_completed
@@ -239,7 +300,7 @@ export default function Onboarding() {
         title={
           profile.data?.onboarding_completed
             ? 'Make it your playground.'
-            : 'A few details. Better games.'
+            : 'Your next crew starts with you.'
         }
         description="Tell us what you play and where. We’ll help you find people who are a good fit."
       />
@@ -248,475 +309,601 @@ export default function Onboarding() {
       ) : !ready ? (
         <CardSkeletons />
       ) : (
-        <form
-          onSubmit={submit}
-          className="grid items-start gap-7 xl:grid-cols-[1fr_260px]"
-        >
+        <form id="profile-form" onSubmit={submit} className="space-y-6">
+          {!editing && (
+            <div className="space-y-3">
+              <div className="flex justify-between text-xs font-medium text-muted-foreground">
+                <span>Let’s get acquainted</span>
+                <span>
+                  Step {step + 1} of {steps.length}
+                </span>
+              </div>
+              <div
+                role="progressbar"
+                aria-label="Profile setup"
+                aria-valuemin={0}
+                aria-valuemax={steps.length}
+                aria-valuenow={step + 1}
+                className="h-1.5 overflow-hidden rounded-full bg-muted"
+              >
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${((step + 1) / steps.length) * 100}%` }}
+                />
+              </div>
+              <h2
+                ref={heading}
+                tabIndex={-1}
+                className="scroll-mt-24 pt-5 text-3xl font-semibold outline-none"
+              >
+                {steps[step]}
+              </h2>
+            </div>
+          )}
           <div className="space-y-6">
             <ErrorNotice message={error || profile.error} />
-            <Card className="shadow-none">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary">01</Badge>
-                  <CardTitle>About you</CardTitle>
-                </div>
-                <CardDescription>
-                  A name your next teammates can remember.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-5 sm:grid-cols-2">
-                <Field id="name" label="Full name">
-                  <Input
-                    id="name"
-                    autoComplete="name"
-                    required
-                    maxLength={150}
-                    placeholder="Your name"
-                    value={form.name}
-                    onChange={(e) => update('name', e.target.value)}
-                  />
-                </Field>
-                <Field
-                  id="phone"
-                  label="Phone number (optional)"
-                  description="Saved privately and unverified. Not used for sign-in."
-                >
-                  <Input
-                    id="phone"
-                    type="tel"
-                    autoComplete="tel"
-                    aria-describedby="phone-help"
-                    maxLength={30}
-                    placeholder="+91 98765 43210"
-                    value={form.phone}
-                    onChange={(e) => update('phone', e.target.value)}
-                  />
-                </Field>
-                <Field
-                  id="nickname"
-                  label="Nickname (optional)"
-                  description="What do your friends call you?"
-                >
-                  <Input
-                    id="nickname"
-                    maxLength={80}
-                    value={form.nickname}
-                    onChange={(e) => update('nickname', e.target.value)}
-                    placeholder="Your courtside name"
-                  />
-                </Field>
-                <Field
-                  id="age"
-                  label="Age (optional)"
-                  description="Only visible to you."
-                >
-                  <Input
-                    id="age"
-                    type="number"
-                    min={1}
-                    max={120}
-                    value={form.age}
-                    onChange={(e) => update('age', e.target.value)}
-                  />
-                </Field>
-                <Field
-                  id="gender"
-                  label="Gender (optional)"
-                  description="Only visible to you."
-                >
-                  <OptionSelect
-                    id="gender"
-                    label="Gender (optional)"
-                    value={form.gender || 'skip'}
-                    onChange={(value) =>
-                      update('gender', value === 'skip' ? '' : value)
-                    }
-                    options={[
-                      { value: 'skip', label: 'Skip for now' },
-                      { value: 'woman', label: 'Woman' },
-                      { value: 'man', label: 'Man' },
-                      { value: 'non_binary', label: 'Non-binary' },
+            {(editing || step === 0) && (
+              <Card className="shadow-none">
+                <CardHeader>
+                  <CardTitle>Gender</CardTitle>
+                  <CardDescription>
+                    Choose what feels right. This is private, and you can skip
+                    it.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <fieldset className="grid gap-3 sm:grid-cols-2">
+                    <legend className="sr-only">Gender (optional)</legend>
+                    {[
+                      { value: 'man', label: 'Male' },
+                      { value: 'woman', label: 'Female' },
+                      { value: 'other', label: 'Others' },
                       {
                         value: 'prefer_not_to_say',
                         label: 'Prefer not to say',
                       },
-                    ]}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-            <Card className="shadow-none">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary">02</Badge>
-                  <CardTitle>Your neighborhood</CardTitle>
-                </div>
-                <CardDescription>
-                  Find players close enough to make a regular game happen.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <Button
-                  variant="outline"
-                  type="button"
-                  disabled={locating}
-                  onClick={useLocation}
-                >
-                  <BusyLabel busy={locating}>
-                    <LocateFixed />
-                    Use my location
-                  </BusyLabel>
-                </Button>
-                {notice && (
-                  <Alert>
-                    <MapPin className="size-4" />
-                    <AlertDescription>{notice}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field id="pincode" label="PIN code">
-                    <Input
-                      id="pincode"
-                      required
-                      inputMode="numeric"
-                      pattern="[0-9]{6}"
-                      maxLength={6}
-                      autoComplete="postal-code"
-                      placeholder="201014"
-                      value={form.pincode}
-                      onChange={(e) => changePin(e.target.value)}
-                    />
-                  </Field>
-                  <Field id="locality" label="Locality">
-                    <Input
-                      id="locality"
-                      required
-                      maxLength={160}
-                      list="locality-options"
-                      placeholder="Your neighborhood"
-                      value={form.locality}
-                      onChange={(e) => update('locality', e.target.value)}
-                    />
-                    <datalist id="locality-options">
-                      {localities.map((item) => (
-                        <option key={item} value={item} />
-                      ))}
-                    </datalist>
-                  </Field>
-                  <Field id="city" label="City">
-                    <Input
-                      id="city"
-                      required
-                      maxLength={160}
-                      autoComplete="address-level2"
-                      placeholder="Your city"
-                      value={form.city}
-                      onChange={(e) => update('city', e.target.value)}
-                    />
-                  </Field>
-                  <Field id="state" label="State">
-                    <Input
-                      id="state"
-                      autoComplete="address-level1"
-                      placeholder="Your state"
-                      value={form.state}
-                      onChange={(e) => update('state', e.target.value)}
-                    />
-                  </Field>
-                </div>
-                <Field
-                  id="street"
-                  label="Street or landmark (optional)"
-                  description="Only you can see your full address."
-                >
-                  <Input
-                    id="street"
-                    placeholder="Nearby landmark"
-                    aria-describedby="street-help"
-                    value={form.street_address}
-                    onChange={(e) => update('street_address', e.target.value)}
-                  />
-                </Field>
-                <div className="space-y-4 border-t pt-5">
-                  <div className="flex justify-between text-sm">
-                    <Label htmlFor="discovery-radius">Discovery radius</Label>
-                    <span className="font-medium text-primary">
-                      {form.search_radius_km} km
-                    </span>
-                  </div>
-                  <Slider
-                    id="discovery-radius"
-                    aria-label="Default discovery radius in kilometers"
-                    min={1}
-                    max={30}
-                    step={1}
-                    value={[form.search_radius_km]}
-                    onValueChange={([value]) =>
-                      update('search_radius_km', value)
-                    }
-                  />
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    Without device location, discovery uses the approximate
-                    center of your PIN-code area.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="shadow-none">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary">03</Badge>
-                  <CardTitle>Your sports, your pace</CardTitle>
-                </div>
-                <CardDescription>
-                  Pick at least one sport and the skill level that feels right.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4">
-                  {sports.map((sport) => (
-                    <div
-                      key={sport}
-                      className={cn(
-                        'space-y-4 rounded-xl border p-4',
-                        selected[sport] && 'border-primary/30 bg-accent/40',
-                      )}
-                    >
-                      <Label
-                        htmlFor={`sport-${sport}`}
-                        className="flex cursor-pointer items-center gap-2 text-sm"
+                      ...(form.gender === 'non_binary'
+                        ? [{ value: 'non_binary', label: 'Non-binary' }]
+                        : []),
+                    ].map((option) => (
+                      <label
+                        key={option.value}
+                        className="relative cursor-pointer"
                       >
-                        <Checkbox
-                          id={`sport-${sport}`}
-                          checked={!!selected[sport]}
-                          onCheckedChange={(checked) =>
-                            setSelected((old) => {
-                              const next = { ...old };
-                              if (checked === true) next[sport] = 'beginner';
-                              else delete next[sport];
-                              return next;
-                            })
-                          }
+                        <input
+                          className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0"
+                          type="radio"
+                          name="gender"
+                          value={option.value}
+                          checked={form.gender === option.value}
+                          onChange={() => update('gender', option.value)}
                         />
-                        {sport}
-                      </Label>
-                      {selected[sport] && (
-                        <fieldset>
-                          <legend className="mb-3 text-xs font-medium text-muted-foreground">
-                            Your level in {sport}
-                          </legend>
-                          <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
-                            {skillLevels.map((level, index) => (
-                              <label
-                                key={level.value}
-                                className="min-w-0 cursor-pointer text-center"
-                              >
-                                <input
-                                  type="radio"
-                                  className="peer sr-only"
-                                  name={`level-${sport}`}
-                                  value={level.value}
-                                  checked={selected[sport] === level.value}
-                                  onChange={() =>
-                                    setSelected((old) => ({
-                                      ...old,
-                                      [sport]: level.value,
-                                    }))
-                                  }
-                                />
-                                <span
-                                  aria-hidden="true"
-                                  className={cn(
-                                    'mx-auto flex aspect-square w-full max-w-16 items-center justify-center rounded-xl border-2 border-transparent text-2xl font-black transition peer-checked:border-foreground peer-checked:ring-2 peer-checked:ring-foreground/20 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4',
-                                    [
-                                      'bg-lime-200 text-lime-950',
-                                      'bg-emerald-300 text-emerald-950',
-                                      'bg-orange-300 text-orange-950',
-                                      'bg-blue-300 text-blue-950',
-                                      'bg-yellow-200 text-yellow-950',
-                                    ][index],
-                                  )}
-                                >
-                                  {level.label[0]}
-                                </span>
-                                <span className="mt-2 block break-words text-[10px] sm:text-xs">
-                                  {level.label}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                          <p className="mt-3 text-xs text-muted-foreground">
-                            {
-                              (
-                                {
-                                  hobby:
-                                    'A casual hit, with no pressure to compete.',
-                                  beginner:
-                                    'Learning the basics and finding your rhythm.',
-                                  intermediate:
-                                    'Comfortable with the basics and ready for a challenge.',
-                                  advanced:
-                                    'Consistent technique and competitive games.',
-                                  pro: 'Experienced in tournaments and high-level competition.',
-                                } as Record<string, string>
-                              )[selected[sport]]
-                            }
-                          </p>
-                        </fieldset>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="shadow-none">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary">04</Badge>
-                  <CardTitle>Make it your game</CardTitle>
-                </div>
-                <CardDescription>
-                  Optional details to help us get to know you. Leave these blank
-                  to skip for now.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <fieldset>
-                  <legend className="mb-3 text-sm font-medium">
-                    What brings you here?
-                  </legend>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                        <span className="flex min-h-16 items-center rounded-xl border px-5 font-medium transition peer-checked:border-primary peer-checked:bg-accent peer-checked:text-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
+                          {option.label}
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                </CardContent>
+              </Card>
+            )}
+            {(editing || step === 1) && (
+              <Card className="shadow-none">
+                <CardHeader>
+                  <CardTitle>Your way to play</CardTitle>
+                  <CardDescription>
+                    Start with what you need today. You can always change this
+                    later.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <fieldset className="grid gap-3">
+                    <legend className="sr-only">
+                      What are you looking for?
+                    </legend>
                     {[
                       {
-                        value: 'starting_out',
-                        label: 'Starting my sporting journey',
+                        value: 'join_individually',
+                        label: 'Join individually',
+                        description: 'Find a player or an open spot in a game.',
                       },
-                      { value: 'comeback', label: 'Making a comeback' },
                       {
-                        value: 'try_something_new',
-                        label: 'Trying a new sport',
+                        value: 'find_group',
+                        label: 'Find my group',
+                        description:
+                          'Meet a local community and make it a regular thing.',
                       },
-                      { value: 'just_for_fun', label: 'Just here to enjoy' },
+                      {
+                        value: 'host_games',
+                        label: 'Host games',
+                        description:
+                          'Bring people together and get a game going.',
+                      },
                     ].map((option) => (
-                      <Button
+                      <label
                         key={option.value}
-                        type="button"
-                        variant={
-                          form.motivation === option.value
-                            ? 'default'
-                            : 'outline'
-                        }
-                        aria-pressed={form.motivation === option.value}
-                        className="h-auto min-h-12 whitespace-normal justify-start"
-                        onClick={() =>
-                          update(
-                            'motivation',
-                            form.motivation === option.value
-                              ? ''
-                              : option.value,
-                          )
-                        }
+                        className="relative cursor-pointer"
                       >
-                        {option.label}
-                      </Button>
+                        <input
+                          className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0"
+                          type="radio"
+                          name="looking-for"
+                          value={option.value}
+                          checked={form.looking_for === option.value}
+                          onChange={() => update('looking_for', option.value)}
+                        />
+                        <span className="block rounded-xl border p-5 transition peer-checked:border-primary peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
+                          <span className="block font-semibold">
+                            {option.label}
+                          </span>
+                          <span className="mt-1 block text-sm text-muted-foreground">
+                            {option.description}
+                          </span>
+                        </span>
+                      </label>
                     ))}
+                  </fieldset>
+                </CardContent>
+              </Card>
+            )}
+            {(editing || step === 2) && (
+              <Card className="shadow-none">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary">01</Badge>
+                    <CardTitle>About you</CardTitle>
                   </div>
-                </fieldset>
-                <div className="space-y-3">
-                  <Field
-                    id="language"
-                    label="Languages you speak (optional)"
-                    description="Add up to 10 languages you are comfortable playing in."
-                  >
-                    <div className="flex gap-2">
-                      <Input
-                        id="language"
-                        value={language}
-                        maxLength={40}
-                        placeholder="e.g. Hindi, English"
-                        onChange={(e) => setLanguage(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            addLanguage();
-                          }
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!language.trim() || languages.length >= 10}
-                        onClick={addLanguage}
-                      >
-                        Add
-                      </Button>
-                    </div>
+                  <CardDescription>
+                    A name your next teammates can remember.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-5 sm:grid-cols-2">
+                  <Field id="name" label="Full name">
+                    <Input
+                      id="name"
+                      autoComplete="name"
+                      required
+                      maxLength={150}
+                      placeholder="Your name"
+                      value={form.name}
+                      onChange={(e) => update('name', e.target.value)}
+                    />
                   </Field>
-                  <div className="flex flex-wrap gap-2" aria-live="polite">
-                    {languages.map((item) => (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        key={item}
-                        aria-label={`Remove ${item}`}
-                        onClick={() =>
-                          setLanguages((old) =>
-                            old.filter((value) => value !== item),
-                          )
-                        }
+                  <Field
+                    id="phone"
+                    label="Phone number (optional)"
+                    description="Saved privately and unverified. Not used for sign-in."
+                  >
+                    <Input
+                      id="phone"
+                      type="tel"
+                      autoComplete="tel"
+                      aria-describedby="phone-help"
+                      maxLength={30}
+                      placeholder="+91 98765 43210"
+                      value={form.phone}
+                      onChange={(e) => update('phone', e.target.value)}
+                    />
+                  </Field>
+                  <Field
+                    id="nickname"
+                    label="Nickname (optional)"
+                    description="What do your friends call you?"
+                  >
+                    <Input
+                      id="nickname"
+                      maxLength={80}
+                      value={form.nickname}
+                      onChange={(e) => update('nickname', e.target.value)}
+                      placeholder="Your courtside name"
+                    />
+                  </Field>
+                  <Field
+                    id="age"
+                    label="Age (optional)"
+                    description="Only visible to you."
+                  >
+                    <Input
+                      id="age"
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={form.age}
+                      onChange={(e) => update('age', e.target.value)}
+                    />
+                  </Field>
+                </CardContent>
+              </Card>
+            )}
+            {(editing || step === 3) && (
+              <Card className="shadow-none">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary">02</Badge>
+                    <CardTitle>Your neighborhood</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Find players close enough to make a regular game happen.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={locating}
+                    onClick={useLocation}
+                  >
+                    <BusyLabel busy={locating}>
+                      <LocateFixed />
+                      Use my location
+                    </BusyLabel>
+                  </Button>
+                  {notice && (
+                    <Alert>
+                      <MapPin className="size-4" />
+                      <AlertDescription>{notice}</AlertDescription>
+                    </Alert>
+                  )}
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field id="pincode" label="PIN code">
+                      <Input
+                        id="pincode"
+                        required
+                        inputMode="numeric"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        autoComplete="postal-code"
+                        placeholder="201014"
+                        value={form.pincode}
+                        onChange={(e) => changePin(e.target.value)}
+                      />
+                    </Field>
+                    <Field id="locality" label="Locality">
+                      <Input
+                        id="locality"
+                        required
+                        maxLength={160}
+                        list="locality-options"
+                        placeholder="Your neighborhood"
+                        value={form.locality}
+                        onChange={(e) => update('locality', e.target.value)}
+                      />
+                      <datalist id="locality-options">
+                        {localities.map((item) => (
+                          <option key={item} value={item} />
+                        ))}
+                      </datalist>
+                    </Field>
+                    <Field id="city" label="City">
+                      <Input
+                        id="city"
+                        required
+                        maxLength={160}
+                        autoComplete="address-level2"
+                        placeholder="Your city"
+                        value={form.city}
+                        onChange={(e) => update('city', e.target.value)}
+                      />
+                    </Field>
+                    <Field id="state" label="State">
+                      <Input
+                        id="state"
+                        autoComplete="address-level1"
+                        placeholder="Your state"
+                        value={form.state}
+                        onChange={(e) => update('state', e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <Field
+                    id="street"
+                    label="Street or landmark (optional)"
+                    description="Only you can see your full address."
+                  >
+                    <Input
+                      id="street"
+                      placeholder="Nearby landmark"
+                      aria-describedby="street-help"
+                      value={form.street_address}
+                      onChange={(e) => update('street_address', e.target.value)}
+                    />
+                  </Field>
+                  <div className="space-y-4 border-t pt-5">
+                    <div className="flex justify-between text-sm">
+                      <Label htmlFor="discovery-radius">Discovery radius</Label>
+                      <span className="font-medium text-primary">
+                        {form.search_radius_km} km
+                      </span>
+                    </div>
+                    <Slider
+                      id="discovery-radius"
+                      aria-label="Default discovery radius in kilometers"
+                      min={1}
+                      max={30}
+                      step={1}
+                      value={[form.search_radius_km]}
+                      onValueChange={([value]) =>
+                        update('search_radius_km', value)
+                      }
+                    />
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      Without device location, discovery uses the approximate
+                      center of your PIN-code area.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {(editing || step === 4) && (
+              <Card className="shadow-none">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary">03</Badge>
+                    <CardTitle>Your sports, your pace</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Pick at least one sport and the skill level that feels
+                    right.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4">
+                    {sports.map((sport) => (
+                      <div
+                        key={sport}
+                        className={cn(
+                          'space-y-4 rounded-xl border p-4',
+                          selected[sport] && 'border-primary/30 bg-accent/40',
+                        )}
                       >
-                        {item} ×
-                      </Button>
+                        <Label
+                          htmlFor={`sport-${sport}`}
+                          className="flex cursor-pointer items-center gap-2 text-sm"
+                        >
+                          <Checkbox
+                            id={`sport-${sport}`}
+                            checked={!!selected[sport]}
+                            onCheckedChange={(checked) =>
+                              setSelected((old) => {
+                                const next = { ...old };
+                                if (checked === true) next[sport] = 'beginner';
+                                else delete next[sport];
+                                return next;
+                              })
+                            }
+                          />
+                          {sport}
+                        </Label>
+                        {selected[sport] && (
+                          <fieldset>
+                            <legend className="mb-3 text-xs font-medium text-muted-foreground">
+                              Your level in {sport}
+                            </legend>
+                            <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
+                              {skillLevels.map((level, index) => (
+                                <label
+                                  key={level.value}
+                                  className="relative min-w-0 cursor-pointer text-center"
+                                >
+                                  <input
+                                    type="radio"
+                                    className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0"
+                                    name={`level-${sport}`}
+                                    value={level.value}
+                                    checked={selected[sport] === level.value}
+                                    onChange={() =>
+                                      setSelected((old) => ({
+                                        ...old,
+                                        [sport]: level.value,
+                                      }))
+                                    }
+                                  />
+                                  <span
+                                    aria-hidden="true"
+                                    className={cn(
+                                      'mx-auto flex aspect-square w-full max-w-16 items-center justify-center rounded-xl border-2 border-transparent text-2xl font-black transition peer-checked:border-foreground peer-checked:ring-2 peer-checked:ring-foreground/20 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4',
+                                      [
+                                        'bg-lime-200 text-lime-950',
+                                        'bg-emerald-300 text-emerald-950',
+                                        'bg-orange-300 text-orange-950',
+                                        'bg-blue-300 text-blue-950',
+                                        'bg-yellow-200 text-yellow-950',
+                                      ][index],
+                                    )}
+                                  >
+                                    {level.label[0]}
+                                  </span>
+                                  <span className="mt-2 block break-words text-[10px] sm:text-xs">
+                                    {level.label}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                            <p className="mt-3 text-xs text-muted-foreground">
+                              {
+                                (
+                                  {
+                                    hobby:
+                                      'A casual hit, with no pressure to compete.',
+                                    beginner:
+                                      'Learning the basics and finding your rhythm.',
+                                    intermediate:
+                                      'Comfortable with the basics and ready for a challenge.',
+                                    advanced:
+                                      'Consistent technique and competitive games.',
+                                    pro: 'Experienced in tournaments and high-level competition.',
+                                  } as Record<string, string>
+                                )[selected[sport]]
+                              }
+                            </p>
+                          </fieldset>
+                        )}
+                      </div>
                     ))}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-white p-5">
-              <p className="text-xs text-muted-foreground">
-                You can update these preferences anytime.
-              </p>
-              <Button size="lg" disabled={busy || locating}>
-                <BusyLabel busy={busy}>
-                  {busy ? 'Saving your profile…' : 'Explore nearby players'}
-                  {!busy && <ArrowRight />}
-                </BusyLabel>
-              </Button>
+                </CardContent>
+              </Card>
+            )}
+            {(editing || step === 5) && (
+              <Card className="shadow-none">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary">04</Badge>
+                    <CardTitle>Make it your game</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Optional details to help us get to know you. Leave these
+                    blank to skip for now.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <fieldset>
+                    <legend className="mb-3 text-sm font-medium">
+                      What brings you here?
+                    </legend>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {[
+                        {
+                          value: 'starting_out',
+                          label: 'Starting my sporting journey',
+                        },
+                        { value: 'comeback', label: 'Making a comeback' },
+                        {
+                          value: 'try_something_new',
+                          label: 'Trying a new sport',
+                        },
+                        { value: 'just_for_fun', label: 'Just here to enjoy' },
+                      ].map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          variant={
+                            form.motivation === option.value
+                              ? 'default'
+                              : 'outline'
+                          }
+                          aria-pressed={form.motivation === option.value}
+                          className="h-auto min-h-12 whitespace-normal justify-start"
+                          onClick={() =>
+                            update(
+                              'motivation',
+                              form.motivation === option.value
+                                ? ''
+                                : option.value,
+                            )
+                          }
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <div className="space-y-3">
+                    <Field
+                      id="language"
+                      label="Languages you speak (optional)"
+                      description="Add up to 10 languages you are comfortable playing in."
+                    >
+                      <div className="flex gap-2">
+                        <Input
+                          id="language"
+                          value={language}
+                          maxLength={40}
+                          placeholder="e.g. Hindi, English"
+                          onChange={(e) => setLanguage(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addLanguage();
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!language.trim() || languages.length >= 10}
+                          onClick={addLanguage}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </Field>
+                    <div className="flex flex-wrap gap-2" aria-live="polite">
+                      {languages.map((item) => (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          key={item}
+                          aria-label={`Remove ${item}`}
+                          onClick={() =>
+                            setLanguages((old) =>
+                              old.filter((value) => value !== item),
+                            )
+                          }
+                        >
+                          {item} ×
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 sm:p-5">
+              {!editing && step > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => goToStep(step - 1)}
+                >
+                  Back
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  You can update this anytime.
+                </p>
+              )}
+              <div className="flex gap-2">
+                {!editing && (step === 0 || step === 5) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => {
+                      if (step === 0) goToStep(1);
+                      else {
+                        setError('');
+                        document
+                          .querySelector<HTMLFormElement>('#profile-form')
+                          ?.requestSubmit();
+                      }
+                    }}
+                  >
+                    {step === 0 ? 'Skip for now' : 'Skip & finish'}
+                  </Button>
+                )}
+                <Button type="submit" size="lg" disabled={busy || locating}>
+                  <BusyLabel busy={busy}>
+                    {busy
+                      ? 'Saving your profile…'
+                      : editing
+                        ? 'Save profile'
+                        : step < steps.length - 1
+                          ? 'Continue'
+                          : 'Let’s play'}
+                    {!busy && <ArrowRight />}
+                  </BusyLabel>
+                </Button>
+              </div>
             </div>
           </div>
-          <aside className="sticky top-24 hidden space-y-5 xl:block">
-            <Card className="gap-4 border-primary/10 bg-accent/40 shadow-none">
-              <CardContent>
-                <ShieldCheck className="mb-3 size-6 text-primary" />
-                <h3 className="font-semibold">
-                  A little privacy goes a long way.
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Players see your neighborhood and approximate distance. Your
-                  address and phone number stay private.
-                </p>
-              </CardContent>
-            </Card>
-            <div className="space-y-4 px-2">
-              {[
-                'Add your details',
-                'Choose your neighborhood',
-                'Pick your sports',
-                'Make it personal (optional)',
-              ].map((item, index) => (
-                <div
-                  key={item}
-                  className="flex items-center gap-3 text-xs text-muted-foreground"
-                >
-                  <span className="flex size-5 items-center justify-center rounded-full border bg-white">
-                    {index + 1}
-                  </span>
-                  {item}
-                </div>
-              ))}
-            </div>
-          </aside>
+          <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+            Your phone, gender, age, and exact address stay private. Players see
+            your neighbourhood and approximate distance.
+          </p>
         </form>
       )}
     </div>

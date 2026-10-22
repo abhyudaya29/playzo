@@ -7,6 +7,7 @@ export type Profile = {
   age: number | null;
   gender: string | null;
   motivation: string | null;
+  looking_for: string | null;
   languages: string[];
   onboarding_completed: boolean;
   search_radius_km: number;

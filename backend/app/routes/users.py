@@ -24,6 +24,7 @@ async def me(
         "age": user.age,
         "gender": user.gender,
         "motivation": user.motivation,
+        "looking_for": user.looking_for,
         "languages": user.languages,
         "onboarding_completed": user.onboarding_completed,
         "search_radius_km": user.search_radius_km,
@@ -55,6 +56,7 @@ async def onboarding(
     user.age = data.age
     user.gender = data.gender
     user.motivation = data.motivation
+    user.looking_for = data.looking_for
     user.languages = data.languages
     user.search_radius_km = data.search_radius_km
     user.onboarding_completed = True

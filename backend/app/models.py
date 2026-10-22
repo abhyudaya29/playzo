@@ -35,6 +35,7 @@ class User(Base):
     nickname: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     gender: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    looking_for: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     motivation: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     languages: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

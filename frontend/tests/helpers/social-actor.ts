@@ -69,21 +69,26 @@ export async function createActor(
     () =>
       (window as unknown as { Clerk: { user: { id: string } } }).Clerk.user.id,
   );
+  await page.getByRole('radio', { name: 'Male', exact: true }).check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('radio', { name: /Join individually/ }).check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByLabel('Full name').fill('Playzo Test');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByLabel('PIN code').fill('201014');
   await page.getByLabel('Locality', { exact: true }).fill('Indirapuram');
   await page.getByLabel('City', { exact: true }).fill('Ghaziabad');
   await page.getByLabel('State', { exact: true }).fill('Uttar Pradesh');
-  await page.getByRole('checkbox', { name: 'Badminton', exact: true }).check();
   await page
     .getByRole('button', { name: 'Use my location', exact: true })
     .click();
   await expect(
     page.getByText('Location captured.', { exact: false }),
   ).toBeVisible();
-  await page
-    .getByRole('button', { name: 'Explore nearby players', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Badminton', exact: true }).check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Let’s play', exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   actor.id = await page.evaluate(async () => {
     const clerk = (

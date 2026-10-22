@@ -13,7 +13,7 @@ export default function Brand() {
         width={1983}
         height={793}
         priority
-        className="h-auto w-40 rounded-md sm:w-44"
+        className="h-auto w-28 rounded-md sm:w-40"
       />
     </Link>
   );

@@ -19,7 +19,8 @@ class OnboardInput(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=30)
     nickname: Optional[str] = Field(default=None, max_length=80)
     age: Optional[int] = Field(default=None, ge=1, le=120)
-    gender: Optional[Literal["woman", "man", "non_binary", "prefer_not_to_say"]] = None
+    gender: Optional[Literal["woman", "man", "non_binary", "other", "prefer_not_to_say"]] = None
+    looking_for: Optional[Literal["join_individually", "find_group", "host_games"]] = None
     motivation: Optional[Literal["starting_out", "comeback", "try_something_new", "just_for_fun"]] = None
     languages: list[str] = Field(default_factory=list, max_length=10)
     pincode: str = Field(pattern=r"^\d{6}$")

@@ -94,7 +94,7 @@ export default function Requests() {
       />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div
-          className="flex flex-wrap gap-1"
+          className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto"
           role="tablist"
           aria-label="Request status"
         >
@@ -117,7 +117,7 @@ export default function Requests() {
             </Button>
           ))}
         </div>
-        <div className="w-48">
+        <div className="w-full sm:w-52">
           <OptionSelect
             label="Request type"
             value={kind}
@@ -146,14 +146,14 @@ export default function Requests() {
             const Icon = icons[item.kind];
             return (
               <Card key={`${item.kind}:${item.id}`} className="shadow-none">
-                <CardContent className="flex flex-wrap items-start justify-between gap-5">
-                  <div className="flex min-w-0 flex-1 gap-4">
+                <CardContent className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex w-full min-w-0 gap-3 lg:flex-1 lg:gap-4">
                     <Avatar className="size-11 shrink-0 rounded-xl">
                       <AvatarFallback className="rounded-xl bg-accent font-semibold text-primary">
                         {item.person.name.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="min-w-0 space-y-2">
+                    <div className="min-w-0 flex-1 space-y-2 break-words">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-base font-semibold">
                           {item.person.name}
@@ -201,7 +201,7 @@ export default function Requests() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex w-full flex-wrap gap-2 border-t pt-4 [&>button]:flex-1 lg:w-auto lg:shrink-0 lg:border-0 lg:pt-0">
                     {item.can_respond ? (
                       <>
                         <Button

@@ -94,3 +94,25 @@
     scroll-behavior: auto !important;
   }
 }
+
+.landing-spotlight {
+  background:
+    radial-gradient(ellipse at 80% 30%, #ddd8ff 0%, transparent 55%),
+    radial-gradient(ellipse at 10% 75%, #f0edff 0%, transparent 55%), #fcfbff;
+}
+.landing-dots {
+  background-image: radial-gradient(#b1a9dc 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(to bottom, transparent, black, transparent);
+}
+.community-card {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+@media (hover: hover) {
+  .community-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 32px -18px #635bff55;
+  }
+}

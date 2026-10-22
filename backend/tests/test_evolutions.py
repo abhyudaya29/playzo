@@ -16,7 +16,7 @@ async def main():
     await runner.evolve()  # Repeated runs preserve applied entries.
     conn = await asyncpg.connect(DATABASE_URL.replace('postgresql+asyncpg://', 'postgresql://'))
     try:
-        assert await conn.fetchval('SELECT count(*) FROM schema_migrations') == 4
+        assert await conn.fetchval('SELECT count(*) FROM schema_migrations') == len(list(runner.EVOLUTIONS.glob('[0-9]*_*.sql')))
         # Simulate ledger rows written by the previous Python runner.
         await conn.execute("UPDATE schema_migrations SET checksum=NULL WHERE version='001_connections_and_game_approval'")
         await runner.evolve()
