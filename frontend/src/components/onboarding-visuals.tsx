@@ -221,9 +221,11 @@ export function IllustratedChoice({
         >
           {checked && <Check className="size-3.5" />}
         </span>
-        <span className={cn('block w-full', !compact && 'row-span-2')}>
-          {children}
-        </span>
+        {children && (
+          <span className={cn('block w-full', !compact && 'row-span-2')}>
+            {children}
+          </span>
+        )}
         <span
           className={cn(
             'block text-sm font-semibold sm:text-base',

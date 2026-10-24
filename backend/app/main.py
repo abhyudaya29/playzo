@@ -55,3 +55,6 @@ app.include_router(tournaments.router)
 
 from app.routes.group_management import router as group_management_router
 app.include_router(group_management_router)
+
+from app.routes.profile_posts import router as profile_posts_router
+app.include_router(profile_posts_router)

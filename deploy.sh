@@ -341,6 +341,10 @@ echo 'Starting release and waiting for healthy services...'
 # then starts a new one in its place.
 "${compose[@]}" up -d --wait --wait-timeout 180 --remove-orphans
 
+# Compare the newly built image's routes with the actual running service.
+echo 'Checking running API routes against this release...'
+"${compose[@]}" run --rm --no-deps api python -m app.check_routes --url http://api:8000
+
 SWAP_STARTED=false
 
 "${compose[@]}" ps

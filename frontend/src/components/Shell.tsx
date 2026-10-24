@@ -155,7 +155,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </header>
         <main
           id="main-content"
-          className="mx-auto min-w-0 max-w-7xl px-4 py-7 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-5 md:px-9 md:py-10"
+          className="mx-auto min-w-0 max-w-7xl px-4 pt-2 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-5 md:px-6 md:pt-3 md:pb-6"
         >
           {children}
         </main>

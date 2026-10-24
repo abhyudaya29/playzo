@@ -15,3 +15,7 @@ FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(
 VALKEY_URL = os.getenv("VALKEY_URL", "redis://localhost:6379/0")
 
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "").strip()
+
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "").strip()
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "").strip()

@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  PageHeader,
   ErrorNotice,
   CardSkeletons,
   BusyLabel,
@@ -24,9 +23,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import PlayerPhoto from '@/components/PlayerPhoto';
+import { ProfilePostCard } from '@/components/ProfilePosts';
 import { useResource } from '@/lib/use-resource';
 import { request } from '@/lib/api';
-import { Availability, SportPreference, Profile } from '@/lib/types';
+import {
+  Availability,
+  SportPreference,
+  Profile,
+  ProfilePost,
+} from '@/lib/types';
 import { days, interests } from '@/lib/player-options';
 import { refreshActivity } from '@/lib/social-types';
 import { trackEvent } from '@/lib/analytics';
@@ -44,6 +49,7 @@ type Player = {
   participation_interests: string[];
   gender: string | null;
   gender_self_description: string | null;
+  posts: ProfilePost[];
   connection_status: string | null;
   connection_direction: string | null;
 };
@@ -112,10 +118,10 @@ export default function PlayerProfile({
       setBusy(false);
     }
   }
-  const p = resource.data;
+  const p = resource.errorStatus === 404 ? null : resource.data;
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <Button variant="ghost" asChild>
+    <div className="mx-auto flex max-w-2xl flex-col gap-3">
+      <Button variant="ghost" size="sm" className="h-8 self-start px-0" asChild>
         <Link href="/dashboard">
           <ArrowLeft />
           Discover players
@@ -133,23 +139,22 @@ export default function PlayerProfile({
         p && (
           <>
             <Card className="border-primary/15 shadow-none">
-              <CardContent className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <CardContent className="flex flex-wrap items-center gap-3">
                 <PlayerPhoto
                   name={p.name}
                   url={p.avatar_url}
-                  className="size-28 shrink-0"
+                  className="size-14 shrink-0"
                 />
-                <div className="flex-1">
-                  <PageHeader
-                    eyebrow="Player profile"
-                    title={p.name}
-                    description={
-                      p.nickname
-                        ? `Known as ${p.nickname}`
-                        : 'Your local playground'
-                    }
-                  />
-                  <p className="mt-3 flex items-center gap-1 text-sm text-muted-foreground">
+                <div className="min-w-0 flex-1">
+                  <h1 className="break-words text-xl font-semibold">
+                    {p.name}
+                  </h1>
+                  {p.nickname && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Known as {p.nickname}
+                    </p>
+                  )}
+                  <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
                     <MapPin className="size-4" />
                     {[p.locality, p.city].filter(Boolean).join(', ') ||
                       'Location not shared'}
@@ -198,6 +203,9 @@ export default function PlayerProfile({
                 </div>
               </CardContent>
             </Card>
+            {p.posts?.[0] && (
+              <ProfilePostCard post={p.posts[0]} name={p.name} />
+            )}
             <Card className="shadow-none">
               <CardHeader>
                 <CardTitle>About {p.name.split(' ')[0]}</CardTitle>
@@ -209,7 +217,10 @@ export default function PlayerProfile({
                 </p>
               </CardContent>
             </Card>
-            <div className="grid gap-5 sm:grid-cols-2">
+            {p.posts?.[1] && (
+              <ProfilePostCard post={p.posts[1]} name={p.name} />
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
               <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle>Sports and pace</CardTitle>
@@ -271,6 +282,9 @@ export default function PlayerProfile({
                 )}
               </CardContent>
             </Card>
+            {p.posts?.slice(2).map((post) => (
+              <ProfilePostCard key={post.id} post={post} name={p.name} />
+            ))}
             {me.data?.id !== p.id && (
               <div className="flex flex-wrap items-center gap-2">
                 <ShieldCheck className="size-4 text-primary" />

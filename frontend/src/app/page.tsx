@@ -14,6 +14,7 @@ import {
 import Brand from '@/components/Brand';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { MatchCourtCard } from '@/components/MatchCourtCard';
 
 export default function Home() {
   return (
@@ -51,7 +52,7 @@ export default function Home() {
           className="landing-dots pointer-events-none absolute inset-0 opacity-40"
           aria-hidden="true"
         />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 pb-16 pt-12 sm:px-6 lg:grid-cols-[1.15fr_1fr] lg:py-24">
+        <div className="relative mx-auto grid max-w-6xl items-center gap-8 px-5 pb-10 pt-6 sm:px-6 lg:grid-cols-[1.15fr_1fr] lg:py-12">
           <div className="page-enter">
             <Badge
               variant="outline"
@@ -83,6 +84,11 @@ export default function Home() {
                   Meet your community <Users />
                 </Link>
               </Button>
+              <Button size="lg" variant="ghost" asChild>
+                <Link href="#about">
+                  About us <ArrowUpRight />
+                </Link>
+              </Button>
             </div>
             <p className="mt-5 flex items-center gap-2 text-xs leading-5 text-muted-foreground">
               <Check className="size-4 shrink-0 text-primary" />
@@ -96,31 +102,7 @@ export default function Home() {
               </span>
               <Sparkles className="size-4 text-primary" />
             </div>
-            <div
-              className="relative aspect-[1.3] overflow-hidden rounded-2xl bg-[#28216b] p-6"
-              aria-hidden="true"
-            >
-              <div className="absolute -right-8 -top-12 size-52 rounded-full bg-violet-500/40 blur-3xl" />
-              <div className="relative h-full rounded-sm border-2 border-white/50">
-                <div className="absolute inset-y-0 left-1/2 w-px bg-white/50" />
-                <div className="absolute inset-x-0 top-1/2 h-px bg-white/50" />
-                <div className="absolute inset-x-0 inset-y-6 border-y border-white/30" />
-                {[
-                  'left-[20%] top-[20%]',
-                  'right-[20%] top-[24%]',
-                  'bottom-[18%] left-[24%]',
-                  'bottom-[22%] right-[16%]',
-                ].map((position, i) => (
-                  <span
-                    key={position}
-                    className={`absolute flex size-9 items-center justify-center rounded-full border-2 border-white/70 text-xs font-bold shadow-lg ${i % 2 ? 'bg-lime-200 text-lime-950' : 'bg-violet-300 text-violet-950'} ${position}`}
-                  >
-                    {['A', 'S', 'R', 'You'][i]}
-                  </span>
-                ))}
-                <CircleDot className="absolute left-1/2 top-1/2 size-8 -translate-x-1/2 -translate-y-1/2 text-white" />
-              </div>
-            </div>
+          <MatchCourtCard/>
             <div className="relative mx-2 -mt-5 rounded-2xl border bg-white p-4 shadow-lg shadow-indigo-100/60 sm:mx-4">
               <Badge variant="secondary" className="mb-3 text-[10px]">
                 Imagine your next weekend
@@ -160,7 +142,7 @@ export default function Home() {
       </div>
       <section
         id="community"
-        className="mx-auto max-w-6xl scroll-mt-8 px-5 py-20 sm:px-6 lg:py-24"
+        className="mx-auto max-w-6xl scroll-mt-8 px-5 py-10 sm:px-6 lg:py-12"
       >
         <p className="text-xs font-semibold uppercase tracking-[.2em] text-primary">
           Find your kind of people
@@ -257,7 +239,7 @@ export default function Home() {
         </div>
       </section>
       <section id="about" className="relative scroll-mt-8 border-y bg-white">
-        <div className="mx-auto grid max-w-6xl gap-8 px-5 py-20 sm:px-6 md:grid-cols-[1fr_2fr] lg:py-24">
+        <div className="mx-auto grid max-w-6xl gap-8 px-5 py-10 sm:px-6 md:grid-cols-[1fr_2fr] lg:py-12">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-primary">
             A little about us
           </p>
@@ -283,8 +265,8 @@ export default function Home() {
           </div>
         </div>
       </section>
-      <section className="px-5 py-16 sm:px-6">
-        <div className="landing-spotlight relative mx-auto max-w-6xl overflow-hidden rounded-[32px] border border-primary/10 px-6 py-14 text-center">
+      <section className="px-5 py-10 sm:px-6">
+        <div className="landing-spotlight relative mx-auto max-w-6xl overflow-hidden rounded-[32px] border border-primary/10 px-6 py-8 text-center">
           <h2 className="text-3xl font-semibold sm:text-4xl">
             Your next game needs you.
           </h2>

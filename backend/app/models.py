@@ -64,6 +64,17 @@ class User(Base):
     search_radius_km: Mapped[int] = mapped_column(Integer, default=5)
 
 
+class ProfilePost(Base):
+    __tablename__ = "profile_posts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    public_id: Mapped[str] = mapped_column(String(255), unique=True)
+    image_url: Mapped[str] = mapped_column(String(2048))
+    caption: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Location(Base):
     __tablename__ = "user_locations"
 

@@ -137,7 +137,7 @@ export default function Dashboard() {
     }
   }
   return (
-    <div className="page-enter space-y-7">
+    <div className="page-enter flex flex-col gap-3">
       <PageHeader
         eyebrow="Your local playground"
         title={

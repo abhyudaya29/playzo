@@ -8,6 +8,7 @@ from app.dependencies import current_user, db_session
 from app.models import Location, Sport, User
 from app.services.clerk_profile import sync_clerk_profile
 from app.services.platform import avatar_url, person, record, require_player, settings, validate_sports
+from app.services.profile_posts import list_posts
 from app.social import blocked
 from app.schemas import AnalyticsConsentInput, OnboardInput, PreferencesInput, ProfilePatch, SportInput
 
@@ -238,6 +239,7 @@ async def public_profile(user_id: str, user=Depends(current_user), db=Depends(db
     loc = await db.get(Location, user_id)
     return {
         **person(other), "bio": other.bio, "nickname": other.nickname,
+        "posts": await list_posts(db, user_id),
         "city": loc.city if loc else None, "locality": loc.locality if loc else None,
         "sports": [{"sport": row.sport, "skill_level": row.skill_level, "play_intention": row.play_intention} for row in sports],
         "availability": other.availability, "participation_interests": other.participation_interests,

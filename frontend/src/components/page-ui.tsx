@@ -5,9 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 export function PageHeader({
-  eyebrow,
   title,
-  description,
   action,
 }: {
   eyebrow: string;
@@ -16,18 +14,12 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">
-          {eyebrow}
-        </p>
-        <h1 className="text-2xl font-semibold sm:text-3xl">{title}</h1>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-          {description}
-        </p>
-      </div>
-      {action}
-    </div>
+    <>
+      <h1 className="sr-only" style={{ marginBlock: 0 }}>
+        {title}
+      </h1>
+      {action && <div className="flex justify-end gap-2">{action}</div>}
+    </>
   );
 }
 export function ErrorNotice({

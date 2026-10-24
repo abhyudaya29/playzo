@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" role="img" aria-labelledby="title desc">
+  <title id="title">Playhud loader</title>
+  <desc id="desc">The playhud play symbol pops in, the wordmark reveals, then the tagline "Find your people. Match your vibe. Get in the game." fades up while a progress bar fills. Loops every 3 seconds.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#080e54"/>
+      <stop offset=".55" stop-color="#101caa"/>
+      <stop offset="1" stop-color="#080b3c"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#aebaff"/>
+      <stop offset=".48" stop-color="#3d50ff"/>
+      <stop offset="1" stop-color="#1027f5"/>
+    </linearGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".52" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#6678ff"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6678ff"/>
+      <stop offset="1" stop-color="#c4cbff"/>
+    </linearGradient>
+    <clipPath id="wordclip">
+      <rect x="395" y="80" height="200" width="0">
+        <animate attributeName="width" dur="3s" repeatCount="indefinite"
+                 values="0;0;680;680;680" keyTimes="0;.15;.42;.88;1"
+                 calcMode="spline" keySplines="0 0 1 1;.2 .8 .2 1;0 0 1 1;0 0 1 1"/>
+      </rect>
+    </clipPath>
+  </defs>
+  <style>
+    .wordmark { font-family: Inter, "Avenir Next", Avenir, Arial, sans-serif; font-size: 164px; font-weight: 750; letter-spacing: -9px; }
+    .tag { font-family: Inter, "Avenir Next", Avenir, Arial, sans-serif; font-size: 32px; font-weight: 600; letter-spacing: 1px; fill: #aebaff; }
+    .tag b { fill: #ffffff; }
+    .sub { font-family: Inter, "Avenir Next", Avenir, Arial, sans-serif; font-size: 22px; font-weight: 500; letter-spacing: 6px; fill: #8c9aff; text-transform: uppercase; }
+
+    .spark { transform-origin: 92px 160px; animation: spark 3s ease-in-out infinite; }
+    .mark  { transform-origin: 245px 160px; animation: mark 3s cubic-bezier(.2,.9,.3,1.2) infinite; }
+    .orbit { transform-origin: 245px 160px; animation: orbit 3s linear infinite; }
+    .tag text { transform-box: fill-box; transform-origin: center; }
+    .t1 { animation: rise 3s ease-out infinite; animation-delay: 0s; }
+    .t2 { animation: rise2 3s ease-out infinite; }
+    .t3 { animation: rise3 3s ease-out infinite; }
+    .sub { animation: rise4 3s ease-out infinite; }
+    .fill { transform-box: fill-box; transform-origin: left center; animation: fill 3s cubic-bezier(.4,0,.2,1) infinite; }
+    .scene { animation: out 3s ease-in infinite; }
+
+    @keyframes spark {
+      0%   { opacity: 0; transform: translateX(-60px) scale(.4); }
+      12%  { opacity: 1; transform: translateX(0) scale(1.3); }
+      22%  { opacity: 1; transform: translateX(0) scale(1); }
+      60%  { opacity: .75; transform: scale(.92); }
+      75%  { opacity: 1; transform: scale(1.12); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes mark {
+      0%   { opacity: 0; transform: scale(.2) rotate(-25deg); }
+      22%  { opacity: 1; transform: scale(1.06) rotate(0); }
+      32%  { transform: scale(1); }
+      60%  { transform: translateY(-4px) scale(1.025); }
+      80%  { transform: translateY(0) scale(1); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes orbit {
+      0%   { opacity: 0; transform: rotate(0) scale(.7); }
+      25%  { opacity: .45; }
+      100% { opacity: .45; transform: rotate(180deg) scale(1); }
+    }
+    @keyframes rise  { 0%,38% { opacity: 0; transform: translateY(14px); } 52%,100% { opacity: 1; transform: translateY(0); } }
+    @keyframes rise2 { 0%,46% { opacity: 0; transform: translateY(14px); } 60%,100% { opacity: 1; transform: translateY(0); } }
+    @keyframes rise3 { 0%,54% { opacity: 0; transform: translateY(14px); } 68%,100% { opacity: 1; transform: translateY(0); } }
+    @keyframes rise4 { 0%,66% { opacity: 0; } 80%,100% { opacity: 1; } }
+    @keyframes fill  { 0% { transform: scaleX(0); } 85%,100% { transform: scaleX(1); } }
+    @keyframes out   { 0%,88% { opacity: 1; } 100% { opacity: 0; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spark,.mark,.orbit,.t1,.t2,.t3,.sub,.fill,.scene { animation: none; opacity: 1; transform: none; }
+      .orbit { opacity: .4; }
+    }
+  </style>
+
+  <rect width="1200" height="440" rx="28" fill="url(#bg)"/>
+
+  <g class="scene">
+    <g transform="translate(0,-20)">
+      <ellipse cx="248" cy="183" rx="178" ry="126" fill="#263cff" opacity=".13" transform="translate(0,-20)"/>
+      <g transform="translate(0,-20)">
+        <circle class="spark" cx="92" cy="180" r="17" fill="#c4cbff"/>
+        <g class="mark">
+          <path d="M145 130 Q132 104 158 86 Q176 73 198 82 L306 126 Q354 145 354 181 Q354 208 326 226 L223 289 Q203 302 191 288 Q182 278 190 260 L229 211 L164 183 Q143 174 145 153 Z" fill="url(#mark)"/>
+          <path d="M143 139 H239 Q259 139 259 159 Q259 178 239 178 H166 L151 210 Q143 226 129 219 Q115 211 122 195 Z" fill="#b5bfff" opacity=".95"/>
+          <path d="M166 178 H229 L202 267 Q195 289 175 285 Q155 281 162 259 Z" fill="#a9b6ff" opacity=".96"/>
+          <path d="M222 210 L303 163 Q321 153 336 164 Q351 175 335 190 L245 245 Q229 254 219 243 Q211 233 222 210 Z" fill="#142df0" opacity=".82"/>
+        </g>
+        <g clip-path="url(#wordclip)">
+          <text class="wordmark" x="405" y="236" fill="url(#word)">playhud</text>
+        </g>
+        <circle class="orbit" cx="245" cy="180" r="119" fill="none" stroke="#6d7aff" stroke-width="2" stroke-dasharray="2 17"/>
+      </g>
+    </g>
+
+    <!-- Tagline -->
+    <g class="tag">
+      <text class="t1" x="270" y="340" text-anchor="middle" fill="#ffffff">Find your people.</text>
+      <text class="t2" x="600" y="340" text-anchor="middle">Match your vibe.</text>
+      <text class="t3" x="930" y="340" text-anchor="middle" fill="#ffffff">Get in the game.</text>
+    </g>
+    <text class="sub" x="600" y="382" text-anchor="middle">Just show up. Let's play.</text>
+
+    <!-- Progress bar -->
+    <rect x="450" y="410" width="300" height="4" rx="2" fill="#ffffff" opacity=".12"/>
+    <rect class="fill" x="450" y="410" width="300" height="4" rx="2" fill="url(#bar)"/>
+  </g>
+</svg>

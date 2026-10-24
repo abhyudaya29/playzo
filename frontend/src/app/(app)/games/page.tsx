@@ -129,7 +129,7 @@ export default function Games() {
       (filter === 'joined' ? game.is_joined : game.sport === filter),
   );
   return (
-    <div className="page-enter space-y-6">
+    <div className="page-enter flex flex-col gap-3">
       <PageHeader
         eyebrow="Make time to play"
         title="Your next game is waiting."

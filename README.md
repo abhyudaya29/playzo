@@ -18,6 +18,10 @@ The script requires a clean checkout, pulls the current branch with `git pull --
 
 Terminate HTTPS with a host reverse proxy: route the frontend domain to `127.0.0.1:3001` and the API domain to `127.0.0.1:8001`. Forward WebSocket upgrades on the API domain for chat and forward the original host/protocol headers. Configure the same frontend domain in Clerk and `FRONTEND_ORIGINS`. The script deploys to the current Docker host; it does not upload code, configure DNS/TLS, or push images to a registry.
 
+If existing endpoints such as `/api/v1/users/me` work while `/api/v1/sports` or `PATCH /api/v1/users/me/analytics-consent` return `404`, check the running API version. These routes are registered in this checkout. CORS can return `200` to `OPTIONS` even for missing endpoints. Deploy the updated API as well as the frontend with `./deploy.sh --apply-evolutions` (or `--skip-pull --apply-evolutions` for changes already on the host). For local development, run `docker compose up -d --build api`. Restarting an old container alone does not rebuild its code.
+
+The release script now compares all HTTP routes in the built API image with the running service's `/openapi.json` before reporting success. If the public API still differs, verify the API domain's reverse proxy targets the release port (`8001` by default), rather than a separate development API on `8000`. You can also run the comparison against your public API from the host: `cd backend && python -m app.check_routes --url https://YOUR_API_DOMAIN`.
+
 `NEXT_PUBLIC_*` settings are embedded during the frontend build. Clerk's secret key is passed only at runtime. SQL evolutions run explicitly through `./evolve.sh`; API startup never changes the schema. Back up the release database before updates: migrations are additive, but a failed health check does not automatically roll back images or schema. Changing `POSTGRES_PASSWORD` in the environment does not rotate the password of an existing database volume. Never run `down -v` against release data.
 
 Inspect a release with:
@@ -46,6 +50,19 @@ Prerequisites: Node 20.9+, Python 3.12+ or Docker, Docker Compose.
 5. Open http://localhost:3000, sign up and complete onboarding.
 6. API docs at http://localhost:8000/docs.
 
+If the API image build times out downloading packages, or reports `asyncpg (from versions: none)` after slow PyPI lookups, retry with `docker compose --progress plain build api`. Python 3.12 on Apple Silicon is supported; a failed package-index request can prevent pip from discovering compatible versions. The build caches downloaded packages between attempts. Keep the cache when retrying. If failures continue, check your network/VPN/proxy access to both `pypi.org` and `files.pythonhosted.org`. After a successful build, run `./evolve.sh` and `docker compose up -d api`.
+
+To use an existing local Python environment with the backend requirements installed, run only the database/cache in Docker and start the API from source:
+
+```bash
+docker compose up -d db valkey
+# Activate your Python environment first.
+python backend/run_local.py --evolve
+python backend/run_local.py
+```
+
+The local runner loads Clerk settings from the root `.env` and connects to the Docker database on port `5433` and cache on `6379`. Stop any other API on port `8000` before using it. This avoids Docker image downloads when the Python dependencies are already installed locally.
+
 Use email/password and Google for Clerk authentication. Enable first and last name fields in Clerk's User model. In Clerk's Phone settings, disable phone sign-up, required phone numbers, sign-in with phone, and SMS authentication/MFA. Collect phone numbers only in onboarding: playhud saves them privately on the profile as unverified contact details, without adding them to Clerk or sending an SMS. Phone verification is deferred. Local Indian mobile numbers are stored with `+91`; other numbers need their country code.
 
 For sign-up email verification, enable **Email verification code** in Clerk's Email settings and deselect **Email verification link**. The custom form explicitly requests the `email_code` strategy and only activates a session after Clerk confirms completion. A pending sign-up can resume code verification. Old email-link callback URLs offer the code flow and account navigation. Sign-in supports email-code Device Trust, authenticator/backup-code MFA, and password reset by email code.
@@ -67,6 +84,16 @@ Run the auth configuration regression checks from the project root with `docker 
 **Clerk application already selected:** `app_3KphwCYcmmp8PpEhBWdAYqQx5be`. Configure its keys manually, or on your own machine run `npx -y clerk@latest auth login` and `npx -y clerk@latest init --app app_3KphwCYcmmp8PpEhBWdAYqQx5be` if setting up a fresh project without Clerk. This repository already has Clerk integrated, so prefer adding the existing keys rather than running `init` again.
 
 Clerk JWTs are verified by FastAPI against your issuer's JWKS. For production, configure allowed audiences/authorized parties and session token templates as appropriate. Do not use mock authentication in production.
+
+## Profile photos and Cloudinary
+
+Completed profiles open in three tabs: **Photos & posts**, **Personal info**, and **Sports & settings**. The signup flow remains a guided setup. Photos appear with captions in the player detail view; phone numbers and exact addresses remain private.
+
+Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` in the root `.env` for local development, or `.env.release` for releases. These are backend settings; never put the API secret in a `NEXT_PUBLIC_*` variable. Uploads use the [signed Cloudinary Upload API](https://cloudinary.com/documentation/image_upload_api_reference#upload), so no unsigned upload preset or frontend Cloudinary SDK is required. Apply `010_profile_posts.sql` with the evolution runner and restart the API after changing credentials. The local Python runner can apply it with `python backend/run_local.py --evolve`.
+
+Each player can add up to 12 JPEG, PNG, or WebP photo posts, up to 10 MB each, with an optional 500-character caption. The API validates file signatures and sizes, signs requests on the server, and stores the resulting Cloudinary image URL and asset identifier. Removing a post deletes its Cloudinary asset with CDN invalidation before removing the database entry. Uploads stay unavailable when credentials are missing; the other profile tabs continue to work.
+
+Public profile responses include photos only after checking profile visibility and blocking. Cloudinary delivery URLs are public CDN URLs; hiding a profile prevents API discovery but does not revoke an image URL that someone already knows.
 
 ## Demo data
 

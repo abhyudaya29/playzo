@@ -32,6 +32,7 @@ before(async () => {
   const resource = fixture(
     'resource.js',
     `
+    import {useState} from 'react';
     const query=new URLSearchParams(location.search);
     const edit=query.has('edit'),resume=query.has('resume');
     const profile={id:'fixture',name:'Backend Name',phone:null,nickname:null,age:null,gender:null,motivation:null,looking_for:edit?'join_individually':null,languages:[],
@@ -42,7 +43,14 @@ before(async () => {
       location:edit?{pincode:'201014',city:'Ghaziabad',state:'Uttar Pradesh',locality:'Indirapuram',street_address:null,latitude:null,longitude:null}:null};
     const reload=async()=>{};
     const resources={'/api/v1/users/me':{data:profile,error:'',loading:false,reload},'/api/v1/sports':{data:['Badminton','Cricket','Tennis'],error:'',loading:false,reload}};
-    export function useResource(path){return resources[path]||{data:null,error:'',loading:false,reload};}
+    window.fixturePosts=query.has('gallery')?Array.from({length:6},(_,i)=>({id:'gallery-'+i,image_url:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="'+['#635bff','#322b75','#a4a0ff'][i%3]+'"/><text x="200" y="210" text-anchor="middle" font-family="Arial" font-size="36" fill="white">Game '+(i+1)+'</text></svg>'),caption:'Weekend game '+(i+1),created_at:'2026-10-24T00:00:00Z'})):[];
+    const player={...profile,id:'other-player',name:'Nearby Player',nickname:'Ace',city:'Ghaziabad',locality:'Indirapuram',sports:[{sport:'Badminton',skill_level:'advanced',play_intention:'both'}],connection_status:null,connection_direction:null,posts:[{id:'photo-1',image_url:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500"><rect width="400" height="500" fill="#635bff"/></svg>'),caption:'Weekend on court',created_at:'2026-10-24T00:00:00Z'}]};
+    export function useResource(path){
+      const [,setVersion]=useState(0);
+      if(path==='/api/v1/users/me/posts')return {data:{posts:window.fixturePosts,uploads_enabled:!query.has('no_uploads'),max_posts:12,max_image_bytes:10485760},loading:false,error:'',reload:async()=>setVersion(v=>v+1)};
+      if(path==='/api/v1/users/other-player')return {data:player,loading:false,error:'',reload};
+      return resources[path]||{data:null,error:'',loading:false,reload};
+    }
   `,
   );
   const api = fixture(
@@ -50,7 +58,12 @@ before(async () => {
     `
     export const API='http://fixture.invalid';
     export async function request(path,token,options={}){
-      window.actions=window.actions||[];window.actions.push({path,method:options.method,body:options.body?JSON.parse(options.body):null});
+      window.actions=window.actions||[];window.actions.push({path,method:options.method,body:typeof options.body==='string'?JSON.parse(options.body):null});
+      if(path.startsWith('/api/v1/users/me/posts')&&options.method==='POST'){
+        const post={id:'new-photo',image_url:URL.createObjectURL(options.body),caption:new URL('http://fixture'+path).searchParams.get('caption'),created_at:new Date().toISOString()};
+        window.fixturePosts=[post,...window.fixturePosts];return post;
+      }
+      if(path.startsWith('/api/v1/users/me/posts/')&&options.method==='DELETE'){window.fixturePosts=window.fixturePosts.filter(p=>p.id!==path.split('/').pop());return;}
       if(path.startsWith('/api/v1/locations/'))return {city:'Ghaziabad',state:'Uttar Pradesh',localities:['Indirapuram']};
       return {success:true};
     }
@@ -60,13 +73,17 @@ before(async () => {
     'navigation.js',
     `export function useRouter(){return {push:path=>{window.destination=path;}};}`,
   );
+  const link = fixture(
+    'link.js',
+    `import React from 'react';export default function Link({href,children,...props}){return React.createElement('a',{...props,href},children);}`,
+  );
   const loader = fixture(
     'loader.cjs',
-    `module.exports=function(source){return require(${JSON.stringify(require.resolve('typescript'))}).transpileModule(source,{compilerOptions:{jsx:4,module:99,target:7,esModuleInterop:true}}).outputText;};`,
+    `module.exports=function(source){if(this.resourcePath.endsWith('OnboardingIntro.tsx')){source=source.replace('/onboarding-loader.svg',${JSON.stringify(pathToFileURL(path.join(root, 'public/onboarding-loader.svg')).href)}).replace('/onboarding-loader-static.svg',${JSON.stringify(pathToFileURL(path.join(root, 'public/onboarding-loader-static.svg')).href)});}return require(${JSON.stringify(require.resolve('typescript'))}).transpileModule(source,{compilerOptions:{jsx:4,module:99,target:7,esModuleInterop:true}}).outputText;};`,
   );
   const entry = fixture(
     'entry.tsx',
-    `import React from 'react';import {createRoot} from 'react-dom/client';import Onboarding from ${JSON.stringify(path.join(root, 'src/app/(app)/onboarding/page.tsx'))};createRoot(document.getElementById('root')).render(<Onboarding/>);`,
+    `import React from 'react';import {createRoot} from 'react-dom/client';import Onboarding from ${JSON.stringify(path.join(root, 'src/app/(app)/onboarding/page.tsx'))};import PlayerProfile from ${JSON.stringify(path.join(root, 'src/app/(app)/players/[userId]/page.tsx'))};const params=Promise.resolve({userId:'other-player'});createRoot(document.getElementById('root')).render(<React.Suspense fallback={null}>{new URLSearchParams(location.search).has('public')?<PlayerProfile params={params}/>:<Onboarding/>}</React.Suspense>);`,
   );
   await new Promise((resolve, reject) =>
     webpack(
@@ -83,6 +100,7 @@ before(async () => {
             '@/lib/use-resource$': resource,
             '@/lib/api$': api,
             'next/navigation$': navigation,
+            'next/link$': link,
             '@': path.join(root, 'src'),
           },
         },
@@ -119,13 +137,16 @@ before(async () => {
       process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
     args: ['--allow-file-access-from-files'],
   });
+  browser.on('page', (page) =>
+    page.on('pageerror', (error) => process.stderr.write(error.stack + '\n')),
+  );
 });
 after(async () => {
   if (browser) await browser.close();
   if (directory) fs.rmSync(directory, { recursive: true, force: true });
 });
 
-test('signup flow retains illustrated choices and colorful skills without duplicate identity or age prompts', async () => {
+test('signup flow retains illustrated choices and themed skills without duplicate identity or age prompts', async () => {
   const page = await browser.newPage({
     viewport: { width: 390, height: 1000 },
   });
@@ -171,7 +192,41 @@ test('signup flow retains illustrated choices and colorful skills without duplic
   assert.equal(await page.locator('input[name="level-Badminton"]').count(), 5);
   assert.equal(await page.getByRole('combobox').count(), 0);
   await page.getByRole('radio', { name: /Intermediate/ }).check();
-  assert.equal(await page.locator('.bg-orange-300').count(), 1);
+  await page.waitForFunction(() => {
+    const inputs = [
+      ...document.querySelectorAll('input[name="level-Badminton"]'),
+    ];
+    const unselected = inputs
+      .filter((input) => !input.checked)
+      .map(
+        (input) => getComputedStyle(input.nextElementSibling).backgroundColor,
+      );
+    const selected = inputs.find((input) => input.checked);
+    return (
+      unselected.every((color) => color === unselected[0]) &&
+      getComputedStyle(selected.nextElementSibling).backgroundColor !==
+        unselected[0]
+    );
+  });
+  const skillColors = await page
+    .locator('input[name="level-Badminton"]')
+    .evaluateAll((inputs) =>
+      inputs.map((input) => ({
+        selected: input.checked,
+        background: getComputedStyle(input.nextElementSibling).backgroundColor,
+        color: getComputedStyle(input.nextElementSibling).color,
+      })),
+    );
+  const selectedColor = skillColors.find((choice) => choice.selected);
+  const otherColors = skillColors.filter((choice) => !choice.selected);
+  assert.equal(
+    otherColors.every(
+      (choice) => choice.background === otherColors[0].background,
+    ),
+    true,
+  );
+  assert.notEqual(selectedColor.background, otherColors[0].background);
+  assert.notEqual(selectedColor.color, otherColors[0].color);
   await page.screenshot({
     path: '/private/tmp/playzo-restored-sports-mobile.png',
     fullPage: true,
@@ -204,26 +259,57 @@ test('signup flow retains illustrated choices and colorful skills without duplic
   await page.close();
 });
 
-test('profile editing uses Clerk account controls and restores all illustrated selections', async () => {
-  const page = await browser.newPage({
-    viewport: { width: 1440, height: 1000 },
-  });
+test('profile tabs separate content, retain edits, and save without leaving the profile', async () => {
+  const page = await browser.newPage({ viewport: { width: 440, height: 956 } });
   await page.goto(url + '?edit=1');
   await page
     .getByRole('button', { name: 'Manage account', exact: true })
     .click();
   assert.equal(await page.evaluate(() => window.accountOpened), 1);
-  assert.equal(await page.locator('input[type="file"]').count(), 0);
-  assert.equal(await page.locator('#name').count(), 0);
-  assert.equal(await page.locator('input[name="gender"]').count(), 5);
-  assert.equal(await page.locator('input[name="looking-for"]').count(), 3);
-  assert.equal(await page.locator('input[name="level-Badminton"]').count(), 5);
   assert.equal(
     await page
-      .getByRole('button', { name: 'Save profile', exact: true })
-      .count(),
-    1,
+      .getByRole('tab', { name: 'Photos & posts' })
+      .getAttribute('aria-selected'),
+    'true',
   );
+  assert.equal(await page.locator('input[type="file"]').count(), 1);
+  assert.equal(await page.locator('#phone').count(), 0);
+  await page.screenshot({
+    path: '/private/tmp/playzo-profile-posts.png',
+    fullPage: true,
+  });
+  await page.getByRole('tab', { name: 'Personal info' }).click();
+  await page.getByLabel('Phone number (optional, private)').fill('9876543210');
+  assert.equal(await page.locator('input[name="gender"]').count(), 5);
+  assert.equal(await page.locator('input[name="looking-for"]').count(), 0);
+  await page.screenshot({
+    path: '/private/tmp/playzo-profile-personal.png',
+    fullPage: true,
+  });
+  await page.getByRole('tab', { name: 'Sports & settings' }).click();
+  assert.equal(await page.locator('input[name="looking-for"]').count(), 3);
+  assert.equal(await page.locator('input[name="level-Badminton"]').count(), 5);
+  assert.equal(await page.locator('#phone').count(), 0);
+  await page.getByRole('radio', { name: /Advanced/ }).check();
+  await page.getByRole('tab', { name: 'Personal info' }).click();
+  assert.equal(
+    await page.getByLabel('Phone number (optional, private)').inputValue(),
+    '9876543210',
+  );
+  await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+  await page
+    .getByRole('status')
+    .filter({ hasText: 'Your profile has been saved.' })
+    .waitFor();
+  const saved = await page.evaluate(
+    () =>
+      window.actions.find(
+        (a) => a.method === 'PUT' && a.path === '/api/v1/users/me/onboarding',
+      ).body,
+  );
+  assert.equal(saved.phone, '+919876543210');
+  assert.equal(saved.sports[0].skill_level, 'advanced');
+  assert.equal(await page.evaluate(() => window.destination), undefined);
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth > innerWidth,
@@ -251,6 +337,178 @@ test('saved illustrated flow resumes sports preferences while using the signup i
       .getAttribute('aria-pressed'),
     'true',
   );
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.close();
+});
+
+test('photo posts upload with a caption, validate file type, and can be removed', async () => {
+  const page = await browser.newPage({ viewport: { width: 320, height: 900 } });
+  await page.goto(url + '?edit=1');
+  const upload = page.getByLabel('Choose a profile photo');
+  await upload.setInputFiles({
+    name: 'bad.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg/>'),
+  });
+  await page.getByText('Choose a JPEG, PNG, or WebP photo.').waitFor();
+  await upload.setInputFiles({
+    name: 'photo.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a9kAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
+  await page.getByLabel('Add a caption (optional)').fill('My weekend game');
+  await page
+    .getByRole('button', { name: 'Add to profile', exact: true })
+    .click();
+  await page.getByText('Photo added to your profile.').waitFor();
+  await page
+    .getByRole('img', { name: 'My weekend game', exact: true })
+    .waitFor();
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page
+    .getByRole('button', { name: 'Remove photo: My weekend game', exact: true })
+    .click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Remove photo', exact: true })
+    .click();
+  await page.getByText('Photo removed.').waitFor();
+  assert.equal(
+    await page
+      .getByRole('img', { name: 'My weekend game', exact: true })
+      .count(),
+    0,
+  );
+  await page.close();
+});
+
+test('missing cloud configuration explains upload availability', async () => {
+  const page = await browser.newPage();
+  await page.goto(url + '?edit=1&no_uploads=1');
+  await page.getByText(/Photo uploads are coming soon/).waitFor();
+  assert.equal(await page.locator('input[type="file"]').count(), 0);
+  await page.getByRole('tab', { name: 'Personal info' }).click();
+  await page.getByLabel('Phone number (optional, private)').waitFor();
+  await page.close();
+});
+
+test('player detail has a compact header and shows photo posts without personal contact information', async () => {
+  const page = await browser.newPage({ viewport: { width: 440, height: 956 } });
+  await page.goto(url + '?public=1');
+  await page
+    .getByRole('heading', { name: 'Nearby Player', exact: true })
+    .waitFor();
+  await page
+    .getByRole('img', { name: 'Weekend on court', exact: true })
+    .waitFor();
+  const back = await page
+    .getByRole('link', { name: 'Discover players' })
+    .boundingBox();
+  const header = await page
+    .getByRole('heading', { name: 'Nearby Player', exact: true })
+    .boundingBox();
+  assert.equal(header.y - (back.y + back.height) < 70, true);
+  assert.equal(await page.getByText('9876543210').count(), 0);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.screenshot({
+    path: '/private/tmp/playzo-player-photo-profile.png',
+    fullPage: true,
+  });
+  await page.close();
+});
+
+test('new signups see a three-second brand intro once before the first step', async () => {
+  const page = await browser.newPage({ viewport: { width: 440, height: 956 } });
+  await page.goto(url);
+  const intro = page
+    .getByRole('status')
+    .filter({ hasText: 'Getting your playground ready…' });
+  await intro.waitFor();
+  const started = Date.now();
+  assert.equal(await page.getByRole('progressbar').count(), 0);
+  const image = intro.locator('img');
+  await page.waitForFunction(
+    () => document.querySelector('picture img')?.naturalWidth > 0,
+  );
+  await page.screenshot({
+    path: '/private/tmp/playzo-onboarding-intro.png',
+    fullPage: true,
+  });
+  await page
+    .getByRole('heading', { name: 'How do you identify?', exact: true })
+    .waitFor();
+  assert.equal(Date.now() - started >= 2500, true);
+  assert.equal(await intro.count(), 0);
+  await page.reload();
+  await page
+    .getByRole('heading', { name: 'How do you identify?', exact: true })
+    .waitFor();
+  assert.equal(await intro.count(), 0);
+  await page.close();
+});
+
+test('reduced motion uses a static brand asset during the signup intro', async () => {
+  const page = await browser.newPage({
+    reducedMotion: 'reduce',
+    viewport: { width: 320, height: 700 },
+  });
+  await page.goto(url);
+  const intro = page
+    .getByRole('status')
+    .filter({ hasText: 'Getting your playground ready…' });
+  await intro.waitFor();
+  await page.waitForFunction(() =>
+    document
+      .querySelector('picture img')
+      ?.currentSrc.includes('onboarding-loader-static.svg'),
+  );
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.close();
+});
+
+test('profile photo grid uses small two-column mobile and three-column desktop cards', async () => {
+  const page = await browser.newPage({ viewport: { width: 440, height: 956 } });
+  await page.goto(url + '?edit=1&gallery=1');
+  const photos = page.getByRole('tabpanel').locator('article img');
+  await photos.first().waitFor();
+  assert.equal(await photos.count(), 6);
+  const first = await photos.nth(0).boundingBox(),
+    second = await photos.nth(1).boundingBox();
+  assert.equal(Math.abs(first.y - second.y) < 2, true);
+  assert.equal(second.x > first.x, true);
+  assert.equal(first.height <= 210, true);
+  await page.screenshot({
+    path: '/private/tmp/playzo-compact-profile-grid.png',
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1200, height: 900 });
+  const desktopFirst = await photos.nth(0).boundingBox(),
+    third = await photos.nth(2).boundingBox();
+  assert.equal(Math.abs(desktopFirst.y - third.y) < 2, true);
+  assert.equal(desktopFirst.height <= 260, true);
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth > innerWidth,

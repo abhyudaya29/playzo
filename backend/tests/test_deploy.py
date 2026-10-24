@@ -21,19 +21,31 @@ class DeployTests(unittest.TestCase):
             binary.mkdir()
             for command in ['git', 'docker']:
                 path = binary / command
-                path.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "' + command + ' $*" >> "$TEST_LOG"\nif [[ "' + command + '" == docker && "$*" == *"app.evolve --check"* && "${PENDING:-0}" == 1 ]]; then exit 1; fi\n')
+                path.write_text(
+                    '#!/usr/bin/env bash\n'
+                    'printf "%s\\n" "' + command + ' $*" >> "$TEST_LOG"\n'
+                    'if [[ "' + command + '" == git ]]; then\n'
+                    '  case "$*" in\n'
+                    '    "rev-parse --abbrev-ref @{upstream}") echo origin/main ;;\n'
+                    '    "rev-parse HEAD") echo old ;;\n'
+                    '    "rev-parse origin/main") echo new ;;\n'
+                    '  esac\n'
+                    'fi\n'
+                    'if [[ "' + command + '" == docker && "$*" == *"app.evolve --check"* && "${PENDING:-0}" == 1 ]]; then exit 1; fi\n'
+                    'if [[ "' + command + '" == docker && "$*" == *"app.check_routes"* && "${MISSING_ROUTES:-0}" == 1 ]]; then exit 1; fi\n'
+                )
                 path.chmod(0o755)
             log = root / 'calls'
             env = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}', 'TEST_LOG': str(log)}
-            def run(*args, pending='0', answer=None):
+            def run(*args, pending='0', answer=None, missing_routes='0'):
                 log.write_text('')
                 command = [str(root / 'deploy.sh'), *args]
                 if answer is None:
-                    result = subprocess.run(command, env={**env, 'PENDING': pending}, capture_output=True, text=True)
+                    result = subprocess.run(command, env={**env, 'PENDING': pending, 'MISSING_ROUTES': missing_routes}, capture_output=True, text=True)
                 else:
                     master, slave = pty.openpty()
                     try:
-                        process = subprocess.Popen(command, env={**env, 'PENDING': pending}, stdin=slave, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        process = subprocess.Popen(command, env={**env, 'PENDING': pending, 'MISSING_ROUTES': missing_routes}, stdin=slave, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                         os.write(master, answer.encode())
                         stdout, stderr = process.communicate(timeout=10)
                         result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
@@ -51,6 +63,12 @@ class DeployTests(unittest.TestCase):
             self.assertIn('app.evolve', calls)
             self.assertNotIn('app.evolve --check', calls)
             self.assertLess(calls.index('app.evolve'), calls.index('--remove-orphans'))
+            self.assertIn('app.check_routes --url http://api:8000', calls)
+            self.assertLess(calls.index('--remove-orphans'), calls.index('app.check_routes'))
+            result, calls = run('--skip-pull', '--apply-evolutions', missing_routes='1')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('app.check_routes', calls)
+            self.assertNotIn('ps --format', calls)
             result, calls = run('--skip-pull', '--skip-evolutions', pending='1')
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('app.evolve --check', calls)
