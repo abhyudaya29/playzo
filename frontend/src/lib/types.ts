@@ -51,3 +51,10 @@ export const skillLevels = [
 ];
 
 export type Availability = { weekday: number; time_slot: string };
+
+export type ProfilePost = {
+  id: string;
+  image_url: string;
+  caption: string;
+  created_at: string;
+};
