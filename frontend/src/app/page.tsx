@@ -66,13 +66,13 @@ export default function Home() {
               <br />
               <span className="text-primary">Missing the gang?</span>
             </h1>
-            <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">
-              We’ve been there. Want to play but can’t find enough people? New
-              in the neighbourhood? Just looking for your next game?
-            </p>
-            <p className="mt-3 text-base font-medium">
-              Your people are closer than you think.
-            </p>
+            <img
+              src="/playhud-lifecycle.svg"
+              width={1200}
+              height={740}
+              alt="The Playhud lifecycle: the itch to play, join Playhud, match your vibe, find your people, lock the plan, and show up and play."
+              className="mt-5 block h-auto w-full max-w-lg rounded-2xl"
+            />
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>
                 <Link href="/sign-up">
@@ -102,7 +102,7 @@ export default function Home() {
               </span>
               <Sparkles className="size-4 text-primary" />
             </div>
-          <MatchCourtCard/>
+            <MatchCourtCard />
             <div className="relative mx-2 -mt-5 rounded-2xl border bg-white p-4 shadow-lg shadow-indigo-100/60 sm:mx-4">
               <Badge variant="secondary" className="mb-3 text-[10px]">
                 Imagine your next weekend
