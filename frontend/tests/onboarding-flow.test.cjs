@@ -34,11 +34,11 @@ before(async () => {
     `
     import {useState} from 'react';
     const query=new URLSearchParams(location.search);
-    const edit=query.has('edit'),resume=query.has('resume');
+    const edit=query.has('edit'),resume=query.has('resume'),legacyReview=query.has('legacy_review');
     const profile={id:'fixture',name:'Backend Name',phone:null,nickname:null,age:null,gender:null,motivation:null,looking_for:edit?'join_individually':null,languages:[],
       bio:null,gender_self_description:null,gender_visibility:'private',discovery_visible:true,role:'USER',participation_interests:[],teammate_preference:'no_preference',availability:[],
-      onboarding_completed:edit,onboarding_step:resume?3:0,
-      onboarding_draft:resume?{name:'Old draft name',looking_for:'join_individually',pincode:'201014',city:'Ghaziabad',state:'Uttar Pradesh',locality:'Indirapuram',sports:[{sport:'Badminton',skill_level:'advanced',play_intention:'casual'}]}:{},
+      onboarding_completed:edit,onboarding_step:legacyReview?5:resume?3:0,
+      onboarding_draft:(resume||legacyReview)?{name:'Old draft name',looking_for:'join_individually',pincode:'201014',city:'Ghaziabad',state:'Uttar Pradesh',locality:'Indirapuram',sports:[{sport:'Badminton',skill_level:'advanced',play_intention:'casual'}]}:{},
       search_radius_km:5,sports:edit?[{sport:'Badminton',skill_level:'intermediate',play_intention:'both'}]:[],
       location:edit?{pincode:'201014',city:'Ghaziabad',state:'Uttar Pradesh',locality:'Indirapuram',street_address:null,latitude:null,longitude:null}:null};
     const reload=async()=>{};
@@ -239,8 +239,29 @@ test('signup flow retains illustrated choices and themed skills without duplicat
   );
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page
-    .getByRole('button', { name: 'Review my profile', exact: true })
-    .click();
+    .getByRole('heading', { name: 'A little more about you', exact: true })
+    .waitFor();
+  assert.equal(
+    await page.getByRole('progressbar').getAttribute('aria-valuemax'),
+    '5',
+  );
+  await page.getByLabel('Nickname (optional)').waitFor();
+  assert.equal(await page.locator('input').count(), 2);
+  assert.equal(await page.locator('textarea').count(), 1);
+  assert.equal(await page.getByRole('combobox').count(), 0);
+  assert.equal(
+    await page.getByRole('button', { name: 'Review my profile' }).count(),
+    0,
+  );
+  assert.equal(
+    await page.getByRole('button', { name: 'Skip for now' }).count(),
+    0,
+  );
+  await page.getByLabel('Nickname (optional)').fill('Ace');
+  await page.getByLabel('Phone number (optional, private)').fill('9876543210');
+  await page
+    .getByLabel('Player bio (optional)')
+    .fill('Always up for badminton.');
   await page.getByRole('button', { name: 'Let’s play', exact: true }).waitFor();
   assert.equal(await page.locator('#name').count(), 0);
   assert.equal(await page.getByText(/I confirm I am 18/).count(), 0);
@@ -253,6 +274,9 @@ test('signup flow retains illustrated choices and themed skills without duplicat
       ).body,
   );
   assert.equal(saved.name, 'Signup Player');
+  assert.equal(saved.nickname, 'Ace');
+  assert.equal(saved.phone, '+919876543210');
+  assert.equal(saved.bio, 'Always up for badminton.');
   assert.equal(saved.sports[0].skill_level, 'intermediate');
   assert.equal('adult_confirmed' in saved, false);
   assert.deepEqual(errors, []);
@@ -515,5 +539,27 @@ test('profile photo grid uses small two-column mobile and three-column desktop c
     ),
     false,
   );
+  await page.close();
+});
+
+test('old review-step drafts resume at the final details step and can finish with optional fields blank', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url + '?legacy_review=1');
+  await page
+    .getByRole('heading', { name: 'A little more about you', exact: true })
+    .waitFor();
+  assert.equal(
+    await page.getByRole('progressbar').getAttribute('aria-valuenow'),
+    '5',
+  );
+  assert.equal(
+    await page.getByRole('progressbar').getAttribute('aria-valuemax'),
+    '5',
+  );
+  await page.getByLabel('Nickname (optional)').waitFor();
+  assert.equal(await page.locator('input').count(), 2);
+  assert.equal(await page.locator('textarea').count(), 1);
+  await page.getByRole('button', { name: 'Let’s play', exact: true }).click();
+  await page.waitForFunction(() => window.destination === '/dashboard');
   await page.close();
 });

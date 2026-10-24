@@ -11,7 +11,6 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   ArrowLeft,
-  Check,
   MapPin,
   ShieldCheck,
   LocateFixed,
@@ -105,8 +104,7 @@ export default function Onboarding() {
   const heading = useRef<HTMLHeadingElement>(null);
   const loadedProfile = useRef<Profile | null>(null);
   const editing = loadedProfile.current?.onboarding_completed ?? false;
-  const reviewing = !editing && step === 5;
-  const showAll = editing || reviewing;
+  const showAll = editing;
   const showIntro =
     ready &&
     !editing &&
@@ -144,7 +142,6 @@ export default function Onboarding() {
     'Where do you play?',
     'What do you love playing?',
     'A little more about you',
-    'Your player profile, all together.',
   ];
   const descriptions = [
     'A little introduction, on your terms. Only you can see this answer.',
@@ -152,7 +149,6 @@ export default function Onboarding() {
     'The best games are close enough to become a habit.',
     'Pick your sports and the pace that feels like you.',
     'A few little things that make you, you. Everything here is optional.',
-    'Take a look, make any changes, and you’re ready for your first hello.',
   ];
   function payload() {
     return {
@@ -297,7 +293,11 @@ export default function Onboarding() {
         draftSports.map((s) => [s.sport, s.play_intention || 'both']),
       ),
     );
-    setStep(p.onboarding_completed ? 0 : Math.min(p.onboarding_step, 5));
+    setStep(
+      p.onboarding_completed
+        ? 0
+        : Math.min(p.onboarding_step, steps.length - 1),
+    );
     setSelected(
       Object.fromEntries(
         draftSports.map((item) => [item.sport, item.skill_level]),
@@ -525,9 +525,7 @@ export default function Onboarding() {
               {!editing && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>
-                      {reviewing ? 'One last look' : 'Let’s get acquainted'}
-                    </span>
+                    <span>Let’s get acquainted</span>
                     <span className="tabular-nums">
                       {String(step + 1).padStart(2, '0')}{' '}
                       <span className="text-muted-foreground/50">
@@ -559,16 +557,15 @@ export default function Onboarding() {
                   </div>
                   <div className="pt-1">
                     <p className="mb-1 text-xs font-medium text-primary">
-                      {reviewing
-                        ? 'The whole you'
-                        : [
-                            'About you',
-                            'Your people',
-                            'First names first',
-                            'Keep it local',
-                            'Find your rhythm',
-                            'The little things',
-                          ][step]}
+                      {
+                        [
+                          'About you',
+                          'Your people',
+                          'Keep it local',
+                          'Find your rhythm',
+                          'Finishing touches',
+                        ][step]
+                      }
                     </p>
                     <h1
                       ref={heading}
@@ -612,30 +609,6 @@ export default function Onboarding() {
                       transitioning && 'pointer-events-none',
                     )}
                   >
-                    {reviewing && (
-                      <div className="flex items-center gap-4 rounded-3xl border border-primary/10 bg-accent/50 p-5">
-                        <PlayerPhoto
-                          name={user?.fullName || form.name}
-                          url={user?.imageUrl}
-                          className="size-20 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="break-words text-xl font-semibold">
-                            {form.nickname || form.name}, meet your next
-                            chapter.
-                          </p>
-                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                            {Object.keys(selected).join(' · ')}
-                            <br />
-                            {form.locality}, {form.city}
-                          </p>
-                          <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
-                            <Check className="size-3.5" />
-                            Your profile is ready to review
-                          </span>
-                        </div>
-                      </div>
-                    )}
                     <ErrorNotice
                       message={error || profile.error || catalog.error}
                     />
@@ -1139,7 +1112,7 @@ export default function Onboarding() {
                               </Field>
                             </>
                           )}
-                          {(!editing || profileTab === 'sports') && (
+                          {editing && profileTab === 'sports' && (
                             <>
                               <OptionSelect
                                 label="Teammate preference (optional)"
@@ -1274,7 +1247,7 @@ export default function Onboarding() {
                               </details>
                             </>
                           )}
-                          {(!editing || profileTab === 'personal') && (
+                          {editing && profileTab === 'personal' && (
                             <>
                               <fieldset>
                                 <legend className="mb-3 text-sm font-medium">
@@ -1409,7 +1382,7 @@ export default function Onboarding() {
                   </span>
                 )}
                 <div className="flex gap-2">
-                  {!editing && (step === 0 || step === 4) && (
+                  {!editing && step === 0 && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -1430,11 +1403,9 @@ export default function Onboarding() {
                         ? 'Saving your profile…'
                         : editing
                           ? 'Save profile'
-                          : reviewing
+                          : step === steps.length - 1
                             ? 'Let’s play'
-                            : step === 4
-                              ? 'Review my profile'
-                              : 'Continue'}
+                            : 'Continue'}
                       {!busy && <ArrowRight />}
                     </BusyLabel>
                   </Button>

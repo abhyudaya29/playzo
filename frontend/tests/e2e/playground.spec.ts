@@ -98,11 +98,6 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.getByRole('radio', { name: /Join individually/ }).check();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await expect(page.getByLabel('Full name')).toHaveValue('Playzo Test');
-    await page.getByLabel('Phone number (optional)').fill('98765 43210');
-    await page.getByLabel('Nickname (optional)').fill('Court Captain');
-    await page.getByLabel('Age (optional)', { exact: true }).fill('28');
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.getByLabel('PIN code').fill('201014');
     await page.getByLabel('Locality', { exact: true }).fill('Indirapuram');
     await page.getByLabel('City', { exact: true }).fill('Ghaziabad');
@@ -121,24 +116,20 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
       .check();
     await page.getByRole('radio', { name: 'Pro', exact: true }).check();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByLabel('Nickname (optional)').fill('Court Captain');
     await page
-      .getByRole('button', { name: 'Making a comeback', exact: true })
-      .click();
-    await page.getByLabel('Languages you speak (optional)').fill('Hindi');
-    await page.getByRole('button', { name: 'Add', exact: true }).click();
+      .getByLabel('Phone number (optional, private)')
+      .fill('98765 43210');
     await page
-      .getByRole('button', { name: 'Review my profile', exact: true })
-      .click();
-    await expect(
-      page.getByRole('heading', { name: 'Your player profile, all together.' }),
-    ).toBeVisible();
-    await expect(page.getByLabel('Full name')).toHaveValue('Playzo Test');
-    await expect(page.getByLabel('Locality', { exact: true })).toHaveValue(
-      'Indirapuram',
+      .getByLabel('Player bio (optional)')
+      .fill('Always ready for badminton.');
+    await expect(page.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuemax',
+      '5',
     );
     await expect(
-      page.getByRole('radio', { name: 'Pro', exact: true }),
-    ).toBeChecked();
+      page.getByRole('button', { name: 'Review my profile', exact: true }),
+    ).toHaveCount(0);
     const discover = page.waitForResponse(
       (response) =>
         response.url().includes('/api/v1/discover/players?') &&
@@ -168,24 +159,20 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
       .getByRole('navigation', { name: 'Main navigation' })
       .getByRole('link', { name: 'Your profile' })
       .click();
+    await page.getByRole('tab', { name: 'Personal info' }).click();
     await expect(page.getByLabel('Nickname (optional)')).toHaveValue(
       'Court Captain',
     );
     await expect(
-      page.getByLabel('Age (optional)', { exact: true }),
-    ).toHaveValue('28');
-    await expect(
-      page.getByRole('button', { name: 'Making a comeback', exact: true }),
-    ).toHaveAttribute('aria-pressed', 'true');
-    await expect(
-      page.getByRole('button', { name: 'Remove Hindi', exact: true }),
-    ).toBeVisible();
+      page.getByLabel('Phone number (optional, private)'),
+    ).toHaveValue('+919876543210');
+    await expect(page.getByLabel('Player bio (optional)')).toHaveValue(
+      'Always ready for badminton.',
+    );
+    await page.getByRole('tab', { name: 'Sports & settings' }).click();
     await expect(
       page.getByRole('radio', { name: 'Pro', exact: true }),
     ).toBeChecked();
-    await expect(page.getByLabel('Phone number (optional)')).toHaveValue(
-      '+919876543210',
-    );
     await expect(page.getByLabel('Locality', { exact: true })).toHaveValue(
       'Indirapuram',
     );
@@ -245,7 +232,8 @@ test('email-code signup, profile saving, and persistent workspace navigation', a
       .getByRole('link', { name: 'Profile' })
       .click();
     await expect(page).toHaveURL(/\/onboarding$/);
-    await expect(page.getByLabel('Full name')).toBeVisible();
+    await page.getByRole('tab', { name: 'Personal info' }).click();
+    await expect(page.getByLabel('Nickname (optional)')).toBeVisible();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
