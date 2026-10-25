@@ -49,6 +49,7 @@ class User(Base):
     gender_self_description: Mapped[Optional[str]] = mapped_column(String(100))
     gender_visibility: Mapped[str] = mapped_column(String(12), default="private", server_default="private")
     discovery_visible: Mapped[bool] = mapped_column(default=True, server_default="true")
+    guest_preview_visible: Mapped[bool] = mapped_column(default=False, server_default="false")
     account_status: Mapped[str] = mapped_column(String(20), default="active", server_default="active")
     role: Mapped[str] = mapped_column(String(24), default="USER", server_default="USER")
     participation_interests: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")

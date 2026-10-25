@@ -42,6 +42,11 @@ import { OptionSelect } from '@/components/option-select';
 import PlayerPhoto from '@/components/PlayerPhoto';
 import ProfileTabs, { ProfileTab } from '@/components/ProfileTabs';
 import ProfilePosts from '@/components/ProfilePosts';
+import GuestPreviewSettings from '@/components/GuestPreviewSettings';
+import {
+  readPlaygroundChoices,
+  consumePlaygroundDestination,
+} from '@/lib/playground';
 import OnboardingIntro from '@/components/OnboardingIntro';
 import { Availability } from '@/lib/types';
 import { days, interests } from '@/lib/player-options';
@@ -245,6 +250,10 @@ export default function Onboarding() {
     loaded.current = true;
     const p = profile.data;
     loadedProfile.current = p;
+    const guest =
+      !p.onboarding_completed && !Object.keys(p.onboarding_draft).length
+        ? readPlaygroundChoices()
+        : null;
     setForm({
       ...initial,
       ...p.location,
@@ -268,6 +277,22 @@ export default function Onboarding() {
             ),
           )
         : {}),
+      ...(guest
+        ? {
+            gender: guest.gender,
+            pincode: guest.pincode,
+            city: guest.city,
+            locality: guest.locality,
+            state: guest.state,
+            participation_interests: [
+              guest.kind === 'communities'
+                ? 'join_groups'
+                : guest.kind === 'games'
+                  ? 'join_games'
+                  : 'find_teammates',
+            ],
+          }
+        : {}),
       // Signup identity remains authoritative over any old draft name.
       name: user.fullName || user.firstName || p.name,
       age:
@@ -277,7 +302,11 @@ export default function Onboarding() {
       looking_for: ((!p.onboarding_completed &&
         p.onboarding_draft.looking_for) ||
         p.looking_for ||
-        '') as string,
+        (guest
+          ? guest.kind === 'communities'
+            ? 'find_group'
+            : 'join_individually'
+          : '')) as string,
     });
     setLanguages(
       (!p.onboarding_completed && Array.isArray(p.onboarding_draft.languages)
@@ -287,7 +316,15 @@ export default function Onboarding() {
     const draftSports =
       !p.onboarding_completed && Array.isArray(p.onboarding_draft.sports)
         ? (p.onboarding_draft.sports as Profile['sports'])
-        : p.sports;
+        : guest
+          ? [
+              {
+                sport: guest.sport,
+                skill_level: guest.skill_level,
+                play_intention: 'both',
+              },
+            ]
+          : p.sports;
     setIntentions(
       Object.fromEntries(
         draftSports.map((s) => [s.sport, s.play_intention || 'both']),
@@ -427,11 +464,12 @@ export default function Onboarding() {
         return;
       }
       router.push(
-        form.looking_for === 'join_individually'
-          ? '/dashboard'
-          : form.looking_for === 'find_group'
-            ? '/groups'
-            : '/games',
+        consumePlaygroundDestination() ||
+          (form.looking_for === 'join_individually'
+            ? '/dashboard'
+            : form.looking_for === 'find_group'
+              ? '/groups'
+              : '/games'),
       );
     } catch (e) {
       completing.current = false;
@@ -1160,6 +1198,12 @@ export default function Onboarding() {
                                   </Label>
                                 ))}
                               </div>
+                              <GuestPreviewSettings
+                                enabled={
+                                  profile.data?.guest_preview_visible ?? false
+                                }
+                                onSaved={profile.reload}
+                              />
                               <details className="space-y-4 rounded-xl border p-4">
                                 <summary className="cursor-pointer text-sm font-medium">
                                   Playing times and visibility (optional)

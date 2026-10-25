@@ -29,6 +29,7 @@ async def me(
         "gender_self_description": user.gender_self_description,
         "gender_visibility": user.gender_visibility,
         "discovery_visible": user.discovery_visible,
+        "guest_preview_visible": user.guest_preview_visible,
         "participation_interests": user.participation_interests,
         "teammate_preference": user.teammate_preference,
         "availability": user.availability,

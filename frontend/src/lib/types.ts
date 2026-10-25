@@ -11,6 +11,7 @@ export type Profile = {
   gender_self_description: string | null;
   gender_visibility: 'private' | 'public';
   discovery_visible: boolean;
+  guest_preview_visible?: boolean;
   role:
     | 'USER'
     | 'SUPER_ADMIN'

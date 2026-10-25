@@ -58,3 +58,6 @@ app.include_router(group_management_router)
 
 from app.routes.profile_posts import router as profile_posts_router
 app.include_router(profile_posts_router)
+
+from app.routes.playground import router as playground_router
+app.include_router(playground_router)

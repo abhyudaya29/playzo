@@ -12,6 +12,7 @@ import {
   Heart,
 } from 'lucide-react';
 import Brand from '@/components/Brand';
+import LandingActivityToast from '@/components/LandingActivityToast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MatchCourtCard } from '@/components/MatchCourtCard';
@@ -80,8 +81,8 @@ export default function Home() {
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="#community">
-                  Meet your community <Users />
+                <Link href="/playground">
+                  Try the playground <ArrowRight />
                 </Link>
               </Button>
               <Button size="lg" variant="ghost" asChild>
@@ -289,6 +290,7 @@ export default function Home() {
           Already part of the gang? Sign in
         </Link>
       </footer>
+      <LandingActivityToast />
     </main>
   );
 }

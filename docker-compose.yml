@@ -34,7 +34,7 @@ services:
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
-      FRONTEND_ORIGINS: http://localhost:3000
+      FRONTEND_ORIGINS: http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

@@ -129,6 +129,7 @@ OnboardInput.model_rebuild()
 
 
 class PreferencesInput(BaseModel):
+    guest_preview_visible: bool = False
     model_config = ConfigDict(extra="forbid")
     teammate_preference: Literal["women", "men", "mixed", "no_preference"] = "no_preference"
     discovery_visible: bool = True

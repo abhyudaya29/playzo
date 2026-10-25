@@ -25,7 +25,9 @@ before(async () => {
     const user={id:'fixture',fullName:'Signup Player',firstName:'Signup',imageUrl:null};
     const getToken=async()=> 'fixture-token';
     export function useUser(){return {user};}
-    export function useAuth(){return {getToken,isLoaded:true,isSignedIn:true,userId:user.id};}
+    export function useAuth(){return {getToken,isLoaded:true,isSignedIn:!new URLSearchParams(location.search).has('guest'),userId:user.id};}
+    export function useSignIn(){return {isLoaded:true,signIn:{},setActive:async()=>{}};}
+    export function useSignUp(){return {isLoaded:true,signUp:{status:null,unverifiedFields:[]}};}
     export function useClerk(){return {openUserProfile:()=>{window.accountOpened=(window.accountOpened||0)+1;}};}
   `,
   );
@@ -64,6 +66,14 @@ before(async () => {
         window.fixturePosts=[post,...window.fixturePosts];return post;
       }
       if(path.startsWith('/api/v1/users/me/posts/')&&options.method==='DELETE'){window.fixturePosts=window.fixturePosts.filter(p=>p.id!==path.split('/').pop());return;}
+      if(path==='/api/v1/sports')return ['Badminton','Cricket','Tennis'];
+      if(path==='/api/v1/playground/activity')return {items:new URLSearchParams(location.search).has('activity_real')?[{id:'real-event',name:'Riya',message:'found a playing partner',created_at:new Date(Date.now()-300000).toISOString()}]:[]};
+      if(path==='/api/v1/playground/recommendations'){
+        const params=new URLSearchParams(location.search),body=JSON.parse(options.body);
+        if(params.has('offline'))throw new Error('Live previews are temporarily unavailable.');
+        return {kind:body.kind,area:'PIN 201014 area',requires_signup:true,items:params.has('empty')?[]:[{id:'11111111-1111-4111-8111-111111111111',name:body.kind==='players'?'Nearby Alex':body.kind==='communities'?'Nearby Crew':'Nearby Game',sport:body.sport,skill_level:body.skill_level,area:'Ghaziabad',description:'A public guest preview',action:body.kind==='players'?'Connect':body.kind==='communities'?'Join community':'Join game'}]};
+      }
+      if(path.startsWith('/api/v1/locations/reverse')){if(new URLSearchParams(location.search).has('reverse_offline'))throw new Error('Area unavailable');return {city:'Ghaziabad',state:'Uttar Pradesh',locality:'Indirapuram',pincode:'201014'};}
       if(path.startsWith('/api/v1/locations/'))return {city:'Ghaziabad',state:'Uttar Pradesh',localities:['Indirapuram']};
       return {success:true};
     }
@@ -71,11 +81,15 @@ before(async () => {
   );
   const navigation = fixture(
     'navigation.js',
-    `export function useRouter(){return {push:path=>{window.destination=path;}};}`,
+    `export function useRouter(){return {push:path=>{window.destination=path;},replace:path=>{window.destination=path;}};}export function useSearchParams(){return new URLSearchParams(location.search);}`,
   );
   const link = fixture(
     'link.js',
     `import React from 'react';export default function Link({href,children,...props}){return React.createElement('a',{...props,href},children);}`,
+  );
+  const imageStub = fixture(
+    'image.js',
+    `import React from 'react';export default function Image({src,priority,fill,...props}){return React.createElement('img',{...props,src:src.startsWith('/')?${JSON.stringify(pathToFileURL(path.join(root, 'public')).href)}+src:src});}`,
   );
   const loader = fixture(
     'loader.cjs',
@@ -83,7 +97,7 @@ before(async () => {
   );
   const entry = fixture(
     'entry.tsx',
-    `import React from 'react';import {createRoot} from 'react-dom/client';import Onboarding from ${JSON.stringify(path.join(root, 'src/app/(app)/onboarding/page.tsx'))};import PlayerProfile from ${JSON.stringify(path.join(root, 'src/app/(app)/players/[userId]/page.tsx'))};const params=Promise.resolve({userId:'other-player'});createRoot(document.getElementById('root')).render(<React.Suspense fallback={null}>{new URLSearchParams(location.search).has('public')?<PlayerProfile params={params}/>:<Onboarding/>}</React.Suspense>);`,
+    `import React from 'react';import {createRoot} from 'react-dom/client';import Onboarding from ${JSON.stringify(path.join(root, 'src/app/(app)/onboarding/page.tsx'))};import PlayerProfile from ${JSON.stringify(path.join(root, 'src/app/(app)/players/[userId]/page.tsx'))};import Playground from ${JSON.stringify(path.join(root, 'src/app/playground/page.tsx'))};import Home from ${JSON.stringify(path.join(root, 'src/app/page.tsx'))};const query=new URLSearchParams(location.search);const params=Promise.resolve({userId:'other-player'});createRoot(document.getElementById('root')).render(<React.Suspense fallback={null}>{query.has('home')?<Home/>:query.has('playground')?<Playground/>:query.has('public')?<PlayerProfile params={params}/>:<Onboarding/>}</React.Suspense>);`,
   );
   await new Promise((resolve, reject) =>
     webpack(
@@ -97,10 +111,15 @@ before(async () => {
           modules: [path.join(root, 'node_modules'), 'node_modules'],
           alias: {
             '@clerk/nextjs$': auth,
+            '@clerk/nextjs/errors$': fixture(
+              'clerk-errors.js',
+              'export function isClerkAPIResponseError(){return false;}',
+            ),
             '@/lib/use-resource$': resource,
             '@/lib/api$': api,
             'next/navigation$': navigation,
             'next/link$': link,
+            'next/image$': imageStub,
             '@': path.join(root, 'src'),
           },
         },
@@ -561,5 +580,424 @@ test('old review-step drafts resume at the final details step and can finish wit
   assert.equal(await page.locator('textarea').count(), 1);
   await page.getByRole('button', { name: 'Let’s play', exact: true }).click();
   await page.waitForFunction(() => window.destination === '/dashboard');
+  await page.close();
+});
+
+test('guest player previews carry choices and the connection destination through signup', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url + '?playground=1&guest=1');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('radio', { name: 'Male', exact: true }).check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByLabel('Your sport').selectOption('Tennis');
+  await page.getByRole('button', { name: 'Find my playground' }).click();
+  await page.getByLabel('PIN code', { exact: true }).fill('201014');
+  await page.getByRole('button', { name: 'Show nearby previews' }).click();
+  await page
+    .getByRole('heading', { name: 'Nearby Alex', exact: true })
+    .waitFor();
+  await page.getByRole('button', { name: 'Connect', exact: true }).click();
+  await page.getByLabel('Email address', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  const stored = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('playhud:playground-choice')),
+  );
+  assert.equal(stored.sport, 'Tennis');
+  assert.equal(stored.pincode, '201014');
+  assert.equal(stored.gender, 'man');
+  assert.equal(
+    await page.evaluate(() =>
+      window.actions.some((action) => action.path === '/api/v1/connections'),
+    ),
+    false,
+  );
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.goto(url);
+  await page
+    .getByRole('heading', { name: 'How do you identify?', exact: true })
+    .waitFor();
+  assert.equal(
+    await page.getByRole('radio', { name: 'Male', exact: true }).isChecked(),
+    true,
+  );
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  assert.equal(
+    await page
+      .getByRole('radio', { name: 'Join individually', exact: true })
+      .isChecked(),
+    true,
+  );
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  assert.equal(
+    await page.getByLabel('PIN code', { exact: true }).inputValue(),
+    '201014',
+  );
+  assert.equal(
+    await page.getByLabel('City', { exact: true }).inputValue(),
+    'Ghaziabad',
+  );
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('radio', { name: 'Beginner', exact: true }).waitFor();
+  assert.equal(
+    await page
+      .getByRole('radio', { name: 'Beginner', exact: true })
+      .isChecked(),
+    true,
+  );
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Let’s play', exact: true }).click();
+  await page.waitForFunction(
+    () =>
+      window.destination === '/players/11111111-1111-4111-8111-111111111111',
+  );
+  assert.equal(
+    await page.evaluate(() =>
+      sessionStorage.getItem('playhud:playground-choice'),
+    ),
+    null,
+  );
+  await page.close();
+});
+
+test('guests can explore example communities and games, with signup before joining', async () => {
+  const page = await browser.newPage({ viewport: { width: 320, height: 800 } });
+  await page.goto(url + '?playground=1&guest=1');
+  await page.getByRole('radio', { name: /A local community/ }).check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Find my playground' }).click();
+  await page.getByRole('button', { name: 'Take a look around' }).click();
+  await page
+    .getByRole('heading', { name: 'The Weekend Crew', exact: true })
+    .waitFor();
+  await page
+    .getByRole('button', { name: 'Join community', exact: true })
+    .first()
+    .click();
+  await page.getByLabel('Email address', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  await page
+    .getByRole('button', { name: 'Keep exploring', exact: true })
+    .click();
+  await page.getByRole('tab', { name: 'Games', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Join game', exact: true })
+    .first()
+    .click();
+  await page.getByLabel('Email address', { exact: true }).waitFor();
+  await page
+    .getByRole('button', { name: 'Continue with Google', exact: true })
+    .waitFor();
+  await page
+    .getByRole('button', { name: 'Keep exploring', exact: true })
+    .click();
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  assert.equal(
+    await page.evaluate(() =>
+      window.actions.some(
+        (action) =>
+          action.path.includes('/join') ||
+          action.path === '/api/v1/playground/recommendations',
+      ),
+    ),
+    false,
+  );
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  await page.screenshot({
+    path: '/private/tmp/playzo-guest-playground-mobile.png',
+    fullPage: true,
+  });
+  await page.close();
+});
+
+test('denied guest location falls back to PIN entry and unavailable live previews show labeled examples', async () => {
+  const page = await browser.newPage();
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition: (_success, error) => error({ code: 1 }) },
+    }),
+  );
+  await page.goto(url + '?playground=1&guest=1&offline=1');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Find my playground' }).click();
+  await page.getByRole('button', { name: 'Use my location' }).click();
+  await page
+    .getByText(
+      'We couldn’t access your location. Enter your PIN code to keep exploring.',
+    )
+    .waitFor();
+  await page.getByLabel('PIN code', { exact: true }).fill('201014');
+  await page.getByRole('button', { name: 'Show nearby previews' }).click();
+  await page
+    .getByText('Nearby results are unavailable. Demo profiles below.', {
+      exact: true,
+    })
+    .waitFor();
+  await page.getByRole('button', { name: 'Retry nearby previews' }).waitFor();
+  assert.equal(
+    await page
+      .getByRole('heading', { name: 'Nearby Alex', exact: true })
+      .count(),
+    0,
+  );
+  await page.close();
+});
+
+test('empty live preview shows populated demo cards with one clear disclosure', async () => {
+  const page = await browser.newPage();
+  await page.goto(url + '?playground=1&guest=1&empty=1');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Find my playground' }).click();
+  await page.getByLabel('PIN code', { exact: true }).fill('201014');
+  await page.getByRole('button', { name: 'Show nearby previews' }).click();
+  await page
+    .getByText('No public matches nearby yet. Demo profiles below.', {
+      exact: true,
+    })
+    .waitFor();
+  await page.getByRole('heading', { name: 'Aarav', exact: true }).waitFor();
+  assert.equal(await page.getByText('Example', { exact: true }).count(), 0);
+  await page.getByRole('tab', { name: 'Communities', exact: true }).click();
+  await page
+    .getByRole('heading', { name: 'The Weekend Crew', exact: true })
+    .waitFor();
+  assert.equal(
+    await page.evaluate(
+      () =>
+        window.actions.filter(
+          (action) => action.path === '/api/v1/playground/recommendations',
+        ).length,
+    ),
+    2,
+  );
+  await page.close();
+});
+
+test('guest device location is rounded before requesting recommendations', async () => {
+  const page = await browser.newPage();
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (success) =>
+          success({ coords: { latitude: 28.6415234, longitude: 77.3737234 } }),
+      },
+    }),
+  );
+  await page.goto(url + '?playground=1&guest=1');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Find my playground' }).click();
+  await page.getByRole('button', { name: 'Use my location' }).click();
+  await page.getByText('Location detected', { exact: true }).waitFor();
+  await page
+    .getByText('Indirapuram, Ghaziabad, Uttar Pradesh', { exact: true })
+    .waitFor();
+  assert.equal(
+    await page.getByLabel('PIN code', { exact: true }).inputValue(),
+    '201014',
+  );
+  await page.getByRole('button', { name: 'Show nearby previews' }).click();
+  await page
+    .getByRole('heading', { name: 'Nearby Alex', exact: true })
+    .waitFor();
+  const payload = await page.evaluate(
+    () =>
+      window.actions.find(
+        (action) => action.path === '/api/v1/playground/recommendations',
+      ).body,
+  );
+  assert.equal(payload.latitude, 28.64);
+  assert.equal(payload.longitude, 77.37);
+  assert.equal('pincode' in payload, false);
+  await page.close();
+});
+
+test('landing playground CTA and genuine activity toast are dismissible', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url + '?home=1&guest=1&activity_real=1');
+  assert.equal(
+    await page
+      .getByRole('link', { name: 'Try the playground', exact: true })
+      .getAttribute('href'),
+    '/playground',
+  );
+  const toast = page.getByRole('complementary', {
+    name: 'Recent Playhud activity',
+  });
+  await toast.waitFor();
+  await toast.getByText('Riya', { exact: true }).waitFor();
+  assert.equal(await toast.getByText(/Example activity/).count(), 0);
+  await toast
+    .getByRole('button', { name: 'Dismiss community activity' })
+    .click();
+  assert.equal(await toast.count(), 0);
+  assert.equal(
+    await page.evaluate(() =>
+      sessionStorage.getItem('playhud:activity-dismissed'),
+    ),
+    'yes',
+  );
+  await page.close();
+});
+
+test('named demo stories have a subtle disclosure when no real public activity exists', async () => {
+  const page = await browser.newPage();
+  await page.goto(url + '?home=1&guest=1');
+  const toast = page.getByRole('complementary', {
+    name: 'Demo Playhud story',
+  });
+  await toast.waitFor();
+  await toast
+    .getByText('Demo story · Explore the playground', { exact: true })
+    .waitFor();
+  await toast.getByText('Aarav', { exact: true }).waitFor();
+  await page.close();
+});
+
+test('playground introduces one choice group per step and preserves answers when going back', async () => {
+  const page = await browser.newPage({ viewport: { width: 440, height: 956 } });
+  await page.goto(url + '?playground=1&guest=1');
+  assert.equal(
+    await page.getByRole('radio', { name: 'Male', exact: true }).count(),
+    0,
+  );
+  assert.equal(await page.getByLabel('Your sport').count(), 0);
+  assert.equal(
+    await page.getByRole('progressbar').getAttribute('aria-valuenow'),
+    '1',
+  );
+  await page
+    .getByRole('radio', { name: 'A local community', exact: true })
+    .check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  assert.equal(
+    await page
+      .getByRole('radio', { name: 'A local community', exact: true })
+      .count(),
+    0,
+  );
+  await page.getByRole('radio', { name: 'Female', exact: true }).check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  assert.equal(
+    await page.getByRole('radio', { name: 'Female', exact: true }).count(),
+    0,
+  );
+  await page.getByLabel('Your sport').selectOption('Tennis');
+  await page.getByRole('radio', { name: 'Advanced', exact: true }).check();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  assert.equal(
+    await page.getByRole('radio', { name: 'Female', exact: true }).isChecked(),
+    true,
+  );
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  assert.equal(
+    await page
+      .getByRole('radio', { name: 'A local community', exact: true })
+      .isChecked(),
+    true,
+  );
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Skip for now', exact: true }).click();
+  assert.equal(await page.getByLabel('Your sport').inputValue(), 'Tennis');
+  assert.equal(
+    await page
+      .getByRole('radio', { name: 'Advanced', exact: true })
+      .isChecked(),
+    true,
+  );
+  await page.getByRole('button', { name: 'Find my playground' }).click();
+  assert.equal(
+    await page.getByRole('progressbar').getAttribute('aria-valuenow'),
+    '4',
+  );
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  assert.equal(await page.getByLabel('Your sport').inputValue(), 'Tennis');
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.close();
+});
+
+test('landing rotation mixes real events with disclosed named demo stories', async () => {
+  const page = await browser.newPage();
+  await page.clock.install();
+  await page.goto(url + '?home=1&guest=1&activity_real=1');
+  await page
+    .getByRole('link', { name: 'Try the playground', exact: true })
+    .waitFor();
+  await page.clock.runFor(5000);
+  await page
+    .getByRole('complementary', { name: 'Recent Playhud activity' })
+    .getByText('Riya', { exact: true })
+    .waitFor();
+  await page.clock.runFor(16000);
+  const demo = page.getByRole('complementary', { name: 'Demo Playhud story' });
+  await demo.getByText('Aarav', { exact: true }).waitFor();
+  await demo
+    .getByText('Demo story · Explore the playground', { exact: true })
+    .waitFor();
+  assert.equal(await demo.getByText(/min ago|hr ago|minute ago/).count(), 0);
+  await page.close();
+});
+
+test('area name failure keeps device search available and manual PIN clears detected area', async () => {
+  const page = await browser.newPage();
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (success) =>
+          success({ coords: { latitude: 28.6415, longitude: 77.3737 } }),
+      },
+    }),
+  );
+  await page.goto(url + '?playground=1&guest=1&reverse_offline=1');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Find my playground' }).click();
+  await page.getByRole('button', { name: 'Use my location' }).click();
+  await page
+    .getByText(/Your location is ready, but we couldn’t find the area name/)
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole('button', { name: 'Show nearby previews' })
+      .isEnabled(),
+    true,
+  );
+  await page.getByLabel('PIN code', { exact: true }).fill('201014');
+  assert.equal(
+    await page.getByText('Location detected', { exact: true }).count(),
+    0,
+  );
+  await page.getByRole('button', { name: 'Show nearby previews' }).click();
+  await page
+    .getByRole('heading', { name: 'Nearby Alex', exact: true })
+    .waitFor();
+  const body = await page.evaluate(
+    () =>
+      window.actions.find(
+        (action) => action.path === '/api/v1/playground/recommendations',
+      ).body,
+  );
+  assert.equal(body.pincode, '201014');
+  assert.equal('latitude' in body, false);
   await page.close();
 });

@@ -95,6 +95,18 @@ Each player can add up to 12 JPEG, PNG, or WebP photo posts, up to 10 MB each, w
 
 Public profile responses include photos only after checking profile visibility and blocking. Cloudinary delivery URLs are public CDN URLs; hiding a profile prevents API discovery but does not revoke an image URL that someone already knows.
 
+## Guest playground and landing activity
+
+The landing page's **Try the playground** button opens `/playground` without authentication. Visitors move through four short steps: players/communities/games, optional gender, sport and skill level, then location. Back navigation preserves selections, and gender can be skipped. They can use an approximate device location, enter an Indian PIN code, or explore demo cards without sharing a location. Demo cards use one disclosure above the results, including when no public matches are available; they are never described as real nearby members. Device coordinates are rounded before the request. Live location fills the area summary and PIN field when available. Area names use Nominatim through a cached backend proxy: at most one upstream request every two seconds, a 24-hour cache, identifying User-Agent, and visible OpenStreetMap attribution. The public service is for moderate, user-triggered usage under its [usage policy](https://operations.osmfoundation.org/policies/nominatim/); set backend `REVERSE_GEOCODING_URL` to switch to a compatible hosted provider as traffic grows. An unavailable area lookup does not block coordinate-based recommendations. PIN previews match the PIN-code area; community/game previews are based on the host's neighborhood, so visitors should confirm the actual venue after signup.
+
+The public API returns at most six previews per request and limits anonymous requests through Valkey. It does not return phone numbers, exact coordinates/venues, private profile details, conversations, or photo posts. Existing profiles are excluded until their owner enables **Show a preview in the guest playground** under **Your profile → Sports & settings**. Previews also require active, completed, discoverable profiles. Private communities, full/past/cancelled games, and unconsented hosts are excluded.
+
+Connect and join actions render the same signup form used on the signup page directly in the playground, before submitting any participation requests. Guest choices and the intended destination are retained in this tab for up to one hour, carried into initial onboarding, and cleared after completion. Authenticated participation endpoints retain their existing authentication and authorization checks.
+
+Landing activity toasts interleave genuine recent signup, accepted-connection, and public-community events from opted-in players with named demo stories. Demo stories have a small disclosure and no invented event timestamps; genuine events show their actual age. They can be dismissed for the tab session, pause while hovered/focused or when the page is hidden, and stop after three appearances.
+
+Apply `011_guest_playground.sql` and restart the API to enable the guest endpoints. Locally, use `python backend/run_local.py --evolve` from the existing backend Python environment. No extra service credentials or frontend packages are needed. The local runner and development Compose configuration allow frontend ports 3000 and 3001.
+
 ## Demo data
 
 To seed nearby players, create multiple Clerk test accounts, onboard each with locations and sports, then log in as one account to see others. No real users or fictitious player identities are preloaded automatically.

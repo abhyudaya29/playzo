@@ -21,6 +21,12 @@ def main() -> None:
     # These are the host ports published by docker-compose.yml.
     env["DATABASE_URL"] = f"postgresql+asyncpg://playzo:{password}@127.0.0.1:5433/playzo"
     env["VALKEY_URL"] = "redis://127.0.0.1:6379/0"
+    # Next selects 3001 when another local frontend is using 3000.
+    origins = env.get("FRONTEND_ORIGINS", "http://localhost:3000").split(",")
+    env["FRONTEND_ORIGINS"] = ",".join(dict.fromkeys([
+        *origins, "http://localhost:3000", "http://localhost:3001",
+        "http://127.0.0.1:3000", "http://127.0.0.1:3001",
+    ]))
     command = [sys.executable, "-m"]
     if args.evolve:
         command += ["app.evolve"]
