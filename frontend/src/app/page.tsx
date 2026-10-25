@@ -1,3 +1,4 @@
+import { InstallApp } from '@/components/PwaSupport';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -20,7 +21,7 @@ import { MatchCourtCard } from '@/components/MatchCourtCard';
 export default function Home() {
   return (
     <main className="min-h-svh overflow-hidden bg-[#fcfbff]">
-      <header className="relative z-10 mx-auto flex h-20 max-w-6xl items-center justify-between gap-3 px-5 sm:px-6">
+      <header className="relative z-10 mx-auto flex min-h-20 max-w-6xl flex-wrap items-center py-3 justify-between gap-3 px-5 sm:px-6">
         <Brand />
         <nav
           aria-label="Landing navigation"
@@ -41,6 +42,7 @@ export default function Home() {
           <Button variant="ghost" asChild className="hidden sm:inline-flex">
             <Link href="/sign-in">Sign in</Link>
           </Button>
+          <InstallApp />
           <Button asChild>
             <Link href="/sign-up">
               Get started <ArrowUpRight />

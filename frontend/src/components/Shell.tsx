@@ -122,7 +122,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </p>
       </aside>
       <div className={cn(!settingUp && 'md:pl-60')}>
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b bg-white/95 px-5 backdrop-blur-sm md:px-9">
+        <header className="sticky top-0 z-20 flex min-h-16 flex-wrap items-center py-2 justify-between gap-3 border-b bg-white/95 px-5 backdrop-blur-sm md:px-9">
           <div className={cn('min-w-0', !settingUp && 'md:hidden')}>
             <Brand />
           </div>

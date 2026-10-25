@@ -97,7 +97,7 @@ before(async () => {
   );
   const entry = fixture(
     'entry.tsx',
-    `import React from 'react';import {createRoot} from 'react-dom/client';import Onboarding from ${JSON.stringify(path.join(root, 'src/app/(app)/onboarding/page.tsx'))};import PlayerProfile from ${JSON.stringify(path.join(root, 'src/app/(app)/players/[userId]/page.tsx'))};import Playground from ${JSON.stringify(path.join(root, 'src/app/playground/page.tsx'))};import Home from ${JSON.stringify(path.join(root, 'src/app/page.tsx'))};const query=new URLSearchParams(location.search);const params=Promise.resolve({userId:'other-player'});createRoot(document.getElementById('root')).render(<React.Suspense fallback={null}>{query.has('home')?<Home/>:query.has('playground')?<Playground/>:query.has('public')?<PlayerProfile params={params}/>:<Onboarding/>}</React.Suspense>);`,
+    `import React from 'react';import {createRoot} from 'react-dom/client';import Onboarding from ${JSON.stringify(path.join(root, 'src/app/(app)/onboarding/page.tsx'))};import PlayerProfile from ${JSON.stringify(path.join(root, 'src/app/(app)/players/[userId]/page.tsx'))};import Playground from ${JSON.stringify(path.join(root, 'src/app/playground/page.tsx'))};import Home from ${JSON.stringify(path.join(root, 'src/app/page.tsx'))};import {PwaProvider} from ${JSON.stringify(path.join(root, 'src/components/PwaSupport.tsx'))};const query=new URLSearchParams(location.search);const params=Promise.resolve({userId:'other-player'});createRoot(document.getElementById('root')).render(<React.Suspense fallback={null}><PwaProvider>{query.has('home')?<Home/>:query.has('playground')?<Playground/>:query.has('public')?<PlayerProfile params={params}/>:<Onboarding/>}</PwaProvider></React.Suspense>);`,
   );
   await new Promise((resolve, reject) =>
     webpack(
@@ -999,5 +999,101 @@ test('area name failure keeps device search available and manual PIN clears dete
   );
   assert.equal(body.pincode, '201014');
   assert.equal('latitude' in body, false);
+  await page.close();
+});
+
+test('Android install button opens the native prompt once and hides after acceptance', async () => {
+  const page = await browser.newPage({
+    viewport: { width: 320, height: 800 },
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36',
+  });
+  await page.goto(url + '?home=1&guest=1');
+  const button = page.getByRole('button', {
+    name: 'Install playhud',
+    exact: true,
+  });
+  await button.waitFor();
+  assert.equal(await button.innerText(), 'Install app');
+  await page.evaluate(() => {
+    window.promptCalls = 0;
+    const event = new Event('beforeinstallprompt', { cancelable: true });
+    event.prompt = async () => {
+      window.promptCalls++;
+    };
+    event.userChoice = new Promise((resolve) => {
+      window.installChoice = resolve;
+    });
+    window.dispatchEvent(event);
+    window.installPrevented = event.defaultPrevented;
+  });
+  await button.click();
+  assert.equal(await page.evaluate(() => window.promptCalls), 1);
+  assert.equal(await page.evaluate(() => window.installPrevented), true);
+  assert.equal(await button.isDisabled(), true);
+  await page.evaluate(() => window.installChoice({ outcome: 'accepted' }));
+  await button.waitFor({ state: 'hidden' });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.close();
+});
+
+test('Android install fallback, dismiss and subsequent install event stay usable', async () => {
+  const page = await browser.newPage({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile',
+  });
+  await page.goto(url + '?home=1&guest=1');
+  const button = page.getByRole('button', {
+    name: 'Install playhud',
+    exact: true,
+  });
+  await button.click();
+  await page
+    .getByRole('status')
+    .filter({ hasText: /In Chrome/ })
+    .waitFor();
+  await page.getByRole('button', { name: 'Got it', exact: true }).click();
+  for (let i = 1; i <= 2; i++) {
+    await page.evaluate(() => {
+      const event = new Event('beforeinstallprompt', { cancelable: true });
+      event.prompt = async () => {
+        window.promptCalls = (window.promptCalls || 0) + 1;
+      };
+      event.userChoice = Promise.resolve({ outcome: 'dismissed' });
+      window.dispatchEvent(event);
+    });
+    await button.click();
+    await page.waitForFunction(
+      (expected) => window.promptCalls === expected,
+      i,
+    );
+    assert.equal(await button.isEnabled(), true);
+  }
+  await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
+  await button.waitFor({ state: 'hidden' });
+  await page.close();
+});
+
+test('installed Android app does not show another install button', async () => {
+  const page = await browser.newPage({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile',
+  });
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, 'standalone', { value: true }),
+  );
+  await page.goto(url + '?home=1&guest=1');
+  await page
+    .getByRole('link', { name: 'Try the playground', exact: true })
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole('button', { name: 'Install playhud', exact: true })
+      .count(),
+    0,
+  );
   await page.close();
 });

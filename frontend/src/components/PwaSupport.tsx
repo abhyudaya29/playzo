@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -24,36 +24,90 @@ export function PwaRegistration() {
   return null;
 }
 
-export function InstallApp() {
+type InstallState = {
+  prompt: InstallPrompt | null;
+  ios: boolean;
+  android: boolean;
+  installed: boolean;
+  busy: boolean;
+  install: () => Promise<boolean>;
+};
+const InstallContext = createContext<InstallState | null>(null);
+
+// Keep the browser's single-use install event across client-side navigation.
+export function PwaProvider({ children }: { children: React.ReactNode }) {
   const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [ios, setIos] = useState(false);
-  const [help, setHelp] = useState(false);
+  const [android, setAndroid] = useState(false);
+  const [installed, setInstalled] = useState(false);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
+    const display = window.matchMedia('(display-mode: standalone)');
     const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
+      display.matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone;
-    if (standalone) return;
+    setInstalled(!!standalone);
     setIos(
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
     );
+    setAndroid(/Android/i.test(navigator.userAgent));
     const ready = (event: Event) => {
       event.preventDefault();
       setPrompt(event as InstallPrompt);
     };
-    const installed = () => {
+    const complete = () => {
+      setInstalled(true);
       setPrompt(null);
-      setIos(false);
-      setHelp(false);
+    };
+    const changed = () => {
+      if (display.matches) complete();
     };
     window.addEventListener('beforeinstallprompt', ready);
-    window.addEventListener('appinstalled', installed);
+    window.addEventListener('appinstalled', complete);
+    display.addEventListener('change', changed);
     return () => {
       window.removeEventListener('beforeinstallprompt', ready);
-      window.removeEventListener('appinstalled', installed);
+      window.removeEventListener('appinstalled', complete);
+      display.removeEventListener('change', changed);
     };
   }, []);
-  if (!prompt && !ios) return null;
+  async function install() {
+    if (!prompt || busy) return false;
+    const event = prompt;
+    setPrompt(null);
+    setBusy(true);
+    try {
+      // Called directly from the button click, preserving the required user gesture.
+      await event.prompt();
+      const choice = await event.userChoice;
+      if (choice.outcome === 'accepted') setInstalled(true);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <InstallContext.Provider
+      value={{ prompt, ios, android, installed, busy, install }}
+    >
+      <PwaRegistration />
+      {children}
+    </InstallContext.Provider>
+  );
+}
+
+export function InstallApp() {
+  const state = useContext(InstallContext);
+  const [help, setHelp] = useState(false);
+  if (
+    !state ||
+    state.installed ||
+    (!state.prompt && !state.ios && !state.android)
+  )
+    return null;
   return (
     <div className="relative">
       <Button
@@ -61,25 +115,26 @@ export function InstallApp() {
         variant="outline"
         size="sm"
         aria-label="Install playhud"
+        aria-expanded={help}
+        disabled={state.busy}
         onClick={async () => {
-          if (!prompt) {
-            setHelp((value) => !value);
-            return;
-          }
-          await prompt.prompt();
-          await prompt.userChoice;
-          setPrompt(null);
+          setHelp(false);
+          if (!(await state.install())) setHelp(true);
         }}
       >
         <Download className="size-4" />
-        <span className="hidden sm:inline">Install app</span>
+        <span>{state.busy ? 'Installing…' : 'Install app'}</span>
       </Button>
       {help && (
         <div
           role="status"
           className="absolute right-0 top-12 z-50 w-60 rounded-xl border bg-white p-4 text-sm shadow-lg"
         >
-          In Safari, tap Share, then “Add to Home Screen” to install playhud.
+          {state.ios
+            ? 'In Safari, tap Share, then “Add to Home Screen” to install playhud.'
+            : !window.isSecureContext
+              ? 'Open Playhud over HTTPS in Chrome to install the app.'
+              : 'In Chrome, open the ⋮ menu and tap “Install app” or “Add to Home screen”. If you’re in another app’s browser, open this page in Chrome first.'}
           <Button
             type="button"
             variant="link"

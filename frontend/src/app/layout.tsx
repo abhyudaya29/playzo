@@ -1,5 +1,5 @@
 import './globals.css';
-import { PwaRegistration } from '@/components/PwaSupport';
+import { PwaProvider } from '@/components/PwaSupport';
 import ClerkProfileSync from '@/components/ClerkProfileSync';
 import AnalyticsProvider from '@/components/AnalyticsProvider';
 import { ClerkProvider } from '@clerk/nextjs';
@@ -28,10 +28,11 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <ClerkProvider>
-          <PwaRegistration />
-          <ClerkProfileSync />
-          <AnalyticsProvider />
-          {children}
+          <PwaProvider>
+            <ClerkProfileSync />
+            <AnalyticsProvider />
+            {children}
+          </PwaProvider>
         </ClerkProvider>
       </body>
     </html>

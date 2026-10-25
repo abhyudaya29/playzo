@@ -15,6 +15,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import Brand from '@/components/Brand';
+import { InstallApp } from '@/components/PwaSupport';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -298,9 +299,10 @@ export default function PlaygroundPage() {
   const currentMode = modes.find((mode) => mode.kind === choices.kind)!;
   return (
     <main className="min-h-svh bg-[#fcfbff]">
-      <header className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 border-b px-4 sm:px-6">
+      <header className="mx-auto flex min-h-16 max-w-5xl flex-wrap items-center py-2 justify-between gap-3 border-b px-4 sm:px-6">
         <Brand />
         <div className="flex items-center gap-2">
+          <InstallApp />
           <Badge variant="secondary" className="hidden sm:inline-flex">
             Guest playground
           </Badge>
